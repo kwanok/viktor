@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .archive import init_workspace, load_agent, load_config, persist_score, set_active_agent
 from .evaluator import evaluate_agent
-from .llm import FakeProvider, OpenAICompatibleProvider
+from .llm import provider_from_config
 from .models import Config
 from .runner import run_evolution
 from .validator import validate_agent_dir
@@ -52,7 +52,7 @@ def main() -> None:
 
     if args.command == "eval":
         agent = load_agent(root, args.agent)
-        provider = FakeProvider() if args.fake else OpenAICompatibleProvider.from_env()
+        provider = provider_from_config(config, root=root, use_fake=args.fake)
         validation = validate_agent_dir(agent.path, config.max_prompt_chars)
         if not validation.passed:
             print(f"Validation failed for {agent.id}")
@@ -82,4 +82,3 @@ def main() -> None:
     if args.command == "promote":
         set_active_agent(root, args.agent)
         print(f"Active hyperagent set to {args.agent}")
-

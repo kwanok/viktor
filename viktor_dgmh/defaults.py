@@ -38,6 +38,7 @@ SEED_TOOL_POLICY = {
         "write_archive_only": True,
         "network": "llm_provider_only",
         "shell": False,
+        "codex_cli_provider": True,
     },
     "requires_approval": [
         "delete_files",
@@ -125,4 +126,3 @@ DEFAULT_BENCHMARK_CASES = [
         "gold_notes": "Should define evaluator as a judge/scorer for agent outputs with a compact example.",
     },
 ]
-

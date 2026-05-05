@@ -5,7 +5,7 @@ from pathlib import Path
 
 from .archive import get_active_agent_id, load_agent, persist_score, set_active_agent
 from .evaluator import evaluate_agent
-from .llm import ChatProvider, FakeProvider, OpenAICompatibleProvider
+from .llm import ChatProvider, provider_from_config
 from .models import Config, RunState
 from .mutator import create_child
 from .paths import runs_dir
@@ -23,7 +23,7 @@ def run_evolution(
     config: Config | None = None,
 ) -> RunState:
     config = config or Config()
-    provider = provider or (FakeProvider() if use_fake else OpenAICompatibleProvider.from_env())
+    provider = provider or provider_from_config(config, root=root, use_fake=use_fake)
     run_id = datetime.now(timezone.utc).strftime("run_%Y%m%d_%H%M%S")
     state = RunState(
         root=root,

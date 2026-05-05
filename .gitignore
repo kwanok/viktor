@@ -4,6 +4,7 @@ __pycache__/
 pytest-cache-files-*/
 _test_workspaces/
 tmp*/
+.viktor_tmp/
 runs/
 archive/gen*_child*/
 .env

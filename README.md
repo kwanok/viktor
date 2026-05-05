@@ -22,3 +22,18 @@ $env:OPENAI_BASE_URL="https://api.openai.com/v1"
 python -m viktor_dgmh run
 ```
 
+## Codex CLI provider
+
+If you have ChatGPT Pro/Plus connected through Codex CLI, you can let Codex CLI
+manage the credentials and use it as an experimental provider:
+
+```powershell
+codex login
+$env:MODEL_PROVIDER="codex_cli"
+$env:MODEL="gpt-5.5"
+python -m viktor_dgmh run --generations 1 --children 1
+```
+
+The adapter calls `codex exec` in read-only, ephemeral mode and captures the
+final message. It is slower than the direct API provider, but avoids copying API
+keys into this project.

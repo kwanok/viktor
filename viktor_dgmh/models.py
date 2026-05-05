@@ -22,8 +22,10 @@ REQUIRED_AGENT_FILES = (
 class Config(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
+    model_provider: str = Field(default="openai", alias="MODEL_PROVIDER")
     model: str = Field(default="gpt-5.5", alias="MODEL")
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
+    codex_cli_bin: str = Field(default="codex", alias="CODEX_CLI_BIN")
     reasoning_effort: str = "medium"
     default_generations: int = 3
     default_children: int = 5
@@ -140,4 +142,3 @@ class RunState(BaseModel):
     candidate_score: AggregateScore | None = None
     promoted: bool = False
     events: list[dict[str, Any]] = Field(default_factory=list)
-
