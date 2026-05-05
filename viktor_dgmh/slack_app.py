@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 import re
 from pathlib import Path
-from dataclasses import dataclass
 
 from .archive import get_active_agent_id
 from .chat import answer_with_agent, record_feedback
@@ -16,7 +15,14 @@ from .memory import (
     new_event_id,
     new_session_id,
 )
-from .models import ChatEvent, Config
+from .models import ChatEvent, Config, RouterObservation
+from .router import (
+    ROUTER_REACTION_LABELS,
+    add_router_label_for_slack_message,
+    append_router_observation,
+    load_router_policy,
+    score_message,
+)
 
 REACTION_TO_FEEDBACK = {
     "+1": "/good",
@@ -29,13 +35,6 @@ REACTION_TO_FEEDBACK = {
     "brain": "/remember This answer reflects a preference worth remembering.",
     "dart": "/good",
 }
-
-
-@dataclass
-class ResponseDecision:
-    should_respond: bool
-    score: float
-    reason: str
 
 
 def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> None:
@@ -84,6 +83,10 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
         reaction = event.get("reaction")
         if not channel or not ts or not reaction:
             return
+        router_label = add_router_label_for_slack_message(root, channel=channel, slack_ts=ts, reaction=reaction)
+        if router_label:
+            logger.info("Recorded router label %s for %s/%s", router_label.label, channel, ts)
+            return
         feedback = REACTION_TO_FEEDBACK.get(reaction)
         if not feedback:
             return
@@ -106,7 +109,10 @@ def _handle_channel_message(root: Path, provider, config: Config, event: dict, s
     text = event.get("text", "").strip()
     if not enabled or not text:
         return
-    decision = should_respond_to_channel_message(text, min_score=config.slack_min_respond_score)
+    policy = load_router_policy(root, "active")
+    decision = score_message(text, policy)
+    if decision.score < config.slack_min_respond_score:
+        decision.should_respond = False
     _log_channel_observation(root, event, decision)
     if not decision.should_respond:
         logger.debug("Staying silent in channel: %s", decision.reason)
@@ -166,42 +172,32 @@ def _strip_bot_mentions(text: str) -> str:
     return re.sub(r"<@[A-Z0-9]+>", "", text)
 
 
-def should_respond_to_channel_message(text: str, *, min_score: float = 0.65) -> ResponseDecision:
-    lower = text.lower()
-    score = 0.0
-    reasons: list[str] = []
+def should_respond_to_channel_message(text: str, *, min_score: float = 0.65):
+    decision = score_message(text)
+    if decision.score < min_score:
+        decision.should_respond = False
+    return decision
 
-    if "?" in text or "？" in text or any(word in lower for word in ["어떻게", "뭐야", "왜", "가능", "괜찮", "생각", "을까", "ㄹ까"]):
-        score += 0.35
-        reasons.append("question-like")
-    if any(word in lower for word in ["viktor", "빅터", "에이전트", "agent", "ai"]):
-        score += 0.35
-        reasons.append("agent-mentioned")
-    if any(word in lower for word in ["설계", "구현", "코드", "논문", "paper", "리뷰", "판단", "위험", "삭제", "배포", "langgraph", "openclaw"]):
-        score += 0.25
-        reasons.append("judgment-topic")
-    if "question-like" in reasons and "judgment-topic" in reasons:
-        score += 0.10
-        reasons.append("question-about-judgment-topic")
-    if any(word in lower for word in ["ㅋㅋ", "ㅎㅎ", "ㅇㅋ", "ok", "thanks", "고마워"]):
-        score -= 0.25
-        reasons.append("chatter")
-    if len(text.strip()) < 8:
-        score -= 0.25
-        reasons.append("too-short")
 
-    score = max(0.0, min(1.0, score))
-    return ResponseDecision(
-        should_respond=score >= min_score,
-        score=round(score, 4),
-        reason=", ".join(reasons) if reasons else "no strong response signal",
+def _log_channel_observation(root: Path, event: dict, decision) -> None:
+    observation_id = new_event_id("robs")
+    append_router_observation(
+        root,
+        RouterObservation(
+            observation_id=observation_id,
+            channel=event.get("channel", ""),
+            slack_ts=event.get("ts", ""),
+            user=event.get("user"),
+            text=event.get("text", ""),
+            router_id=decision.router_id,
+            should_respond=decision.should_respond,
+            score=decision.score,
+            reason=decision.reason,
+        ),
     )
-
-
-def _log_channel_observation(root: Path, event: dict, decision: ResponseDecision) -> None:
     session_id = f"slack_observe_{event.get('channel')}_{event.get('ts')}"
     observation = ChatEvent(
-        event_id=new_event_id("observe"),
+        event_id=observation_id,
         session_id=session_id,
         type="prompt",
         role="user",
@@ -214,6 +210,7 @@ def _log_channel_observation(root: Path, event: dict, decision: ResponseDecision
             "should_respond": decision.should_respond,
             "respond_score": decision.score,
             "respond_reason": decision.reason,
+            "router_id": decision.router_id,
         },
     )
     append_chat_event(root, observation)

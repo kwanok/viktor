@@ -204,3 +204,47 @@ class PairwiseAggregate(BaseModel):
     promoted: bool = False
     rationale: str = ""
     results: list[PairwiseResult] = Field(default_factory=list)
+
+
+class RouterDecision(BaseModel):
+    router_id: str = "active"
+    should_respond: bool
+    score: float
+    reason: str
+
+
+class RouterObservation(BaseModel):
+    observation_id: str
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    channel: str
+    slack_ts: str
+    user: str | None = None
+    text: str
+    router_id: str
+    should_respond: bool
+    score: float
+    reason: str
+
+
+class RouterLabel(BaseModel):
+    label_id: str
+    observation_id: str | None = None
+    channel: str
+    slack_ts: str
+    label: Literal["respond", "silent"]
+    source: str = "reaction"
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+
+class RouterMetrics(BaseModel):
+    router_id: str
+    examples: int = 0
+    true_positive: int = 0
+    true_negative: int = 0
+    false_positive: int = 0
+    false_negative: int = 0
+    precision: float = 0.0
+    recall: float = 0.0
+    f1: float = 0.0
+    false_positive_rate: float = 0.0
+    false_negative_rate: float = 0.0

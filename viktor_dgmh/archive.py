@@ -14,7 +14,7 @@ from .defaults import (
     SEED_TOOL_POLICY,
 )
 from .models import AggregateScore, HyperagentRecord, Manifest, ParentInfo
-from .paths import active_path, archive_dir, benchmark_dir, config_path, memory_dir, runs_dir
+from .paths import active_path, archive_dir, benchmark_dir, config_path, memory_dir, router_archive_dir, router_active_path, router_dir, runs_dir
 from .serialization import read_json, read_yaml, write_json, write_yaml
 
 
@@ -24,9 +24,16 @@ def init_workspace(root: Path, force: bool = False) -> str:
     benchmark_dir(root).mkdir(parents=True, exist_ok=True)
     runs_dir(root).mkdir(parents=True, exist_ok=True)
     memory_dir(root).mkdir(parents=True, exist_ok=True)
+    router_dir(root).mkdir(parents=True, exist_ok=True)
+    router_archive_dir(root).mkdir(parents=True, exist_ok=True)
 
     if not config_path(root).exists() or force:
         write_yaml(config_path(root), DEFAULT_CONFIG)
+
+    if not router_active_path(root).exists() or force:
+        from .router import DEFAULT_ROUTER_POLICY
+
+        write_yaml(router_active_path(root), DEFAULT_ROUTER_POLICY)
 
     cases_path = benchmark_dir(root) / "cases.jsonl"
     if not cases_path.exists() or force:

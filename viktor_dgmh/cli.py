@@ -11,6 +11,7 @@ from .llm import provider_from_config
 from .memory import load_imitation_cases, load_preferences
 from .models import Config
 from .runner import run_evolution
+from .router import ensure_router, evaluate_router, evolve_router, load_router_policy, promote_router
 from .slack_app import serve_slack_app
 from .validator import validate_agent_dir
 
@@ -55,6 +56,17 @@ def main() -> None:
     slack_sub = slack_p.add_subparsers(dest="slack_command", required=True)
     slack_serve_p = slack_sub.add_parser("serve", help="Start the Slack Socket Mode app.")
     slack_serve_p.add_argument("--fake", action="store_true")
+
+    router_p = sub.add_parser("router", help="Inspect and evolve the Slack response router.")
+    router_sub = router_p.add_subparsers(dest="router_command", required=True)
+    router_sub.add_parser("inspect", help="Print active router policy.")
+    router_eval_p = router_sub.add_parser("eval", help="Evaluate a router policy on labeled observations.")
+    router_eval_p.add_argument("--candidate", default="active")
+    router_evolve_p = router_sub.add_parser("evolve", help="Create and evaluate router policy candidates.")
+    router_evolve_p.add_argument("--children", type=int, default=5)
+    router_evolve_p.add_argument("--min-examples", type=int, default=20)
+    router_promote_p = router_sub.add_parser("promote", help="Promote a router candidate if it improves metrics.")
+    router_promote_p.add_argument("--candidate", required=True)
 
     args = parser.parse_args()
     root = Path.cwd().resolve()
@@ -153,3 +165,36 @@ def main() -> None:
                 print(f"Slack app error: {exc}")
                 raise SystemExit(1) from exc
         return
+
+    if args.command == "router":
+        ensure_router(root)
+        if args.router_command == "inspect":
+            import yaml
+
+            print(yaml.safe_dump(load_router_policy(root, "active"), sort_keys=False, allow_unicode=True))
+            return
+        if args.router_command == "eval":
+            metrics = evaluate_router(root, args.candidate)
+            print(_format_router_metrics(metrics))
+            return
+        if args.router_command == "evolve":
+            try:
+                metrics_list = evolve_router(root, children=args.children, min_examples=args.min_examples)
+            except RuntimeError as exc:
+                print(f"Router evolve blocked: {exc}")
+                return
+            for metrics in metrics_list:
+                print(_format_router_metrics(metrics))
+            return
+        if args.router_command == "promote":
+            promoted = promote_router(root, args.candidate)
+            print(f"Router promoted: {promoted}")
+            return
+
+
+def _format_router_metrics(metrics) -> str:
+    return (
+        f"{metrics.router_id}: examples={metrics.examples} "
+        f"precision={metrics.precision:.4f} recall={metrics.recall:.4f} f1={metrics.f1:.4f} "
+        f"fpr={metrics.false_positive_rate:.4f} fnr={metrics.false_negative_rate:.4f}"
+    )

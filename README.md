@@ -114,3 +114,27 @@ export SLACK_AUTO_RESPOND_CHANNELS=false
 If you already installed the app before enabling channel listening, update the
 Slack app manifest, reinstall the app, and invite the bot to any channel where
 it should observe messages.
+
+## Self-evolving router
+
+The Slack channel router is versioned separately from the answer hyperagent. It
+stores its active policy in `router/active.yaml` and logs channel decisions under
+`memory/router_observations.jsonl`.
+
+Router feedback reactions:
+
+```text
+:eyes: should have responded
+:shushing_face: should have stayed silent
+```
+
+Inspect and evolve it:
+
+```bash
+uv run -m viktor_dgmh router inspect
+uv run -m viktor_dgmh router eval --candidate active
+uv run -m viktor_dgmh router evolve --children 5
+uv run -m viktor_dgmh router promote --candidate <router-id>
+```
+
+Evolution is blocked until at least 20 labeled router examples exist.

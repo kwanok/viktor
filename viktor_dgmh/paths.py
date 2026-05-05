@@ -39,6 +39,26 @@ def slack_message_map_path(root: Path) -> Path:
     return memory_dir(root) / "slack_message_map.jsonl"
 
 
+def router_dir(root: Path) -> Path:
+    return root / "router"
+
+
+def router_active_path(root: Path) -> Path:
+    return router_dir(root) / "active.yaml"
+
+
+def router_archive_dir(root: Path) -> Path:
+    return router_dir(root) / "archive"
+
+
+def router_observations_path(root: Path) -> Path:
+    return memory_dir(root) / "router_observations.jsonl"
+
+
+def router_labels_path(root: Path) -> Path:
+    return memory_dir(root) / "router_labels.jsonl"
+
+
 def config_path(root: Path) -> Path:
     return root / "config.yaml"
 

@@ -1,0 +1,48 @@
+id: active
+version: 1
+threshold:
+  respond: 0.65
+weights:
+  question_like: 0.35
+  agent_mentioned: 0.35
+  judgment_topic: 0.25
+  question_about_judgment_topic: 0.1
+  chatter: -0.25
+  too_short: -0.25
+keywords:
+  question_like:
+  - 어떻게
+  - 뭐야
+  - 왜
+  - 가능
+  - 괜찮
+  - 생각
+  - 을까
+  - ㄹ까
+  agent_mentioned:
+  - viktor
+  - 빅터
+  - 에이전트
+  - agent
+  - ai
+  judgment_topic:
+  - 설계
+  - 구현
+  - 코드
+  - 논문
+  - paper
+  - 리뷰
+  - 판단
+  - 위험
+  - 삭제
+  - 배포
+  - langgraph
+  - openclaw
+  chatter:
+  - ㅋㅋ
+  - ㅎㅎ
+  - ㅇㅋ
+  - ok
+  - thanks
+  - 고마워
+min_chars: 8
