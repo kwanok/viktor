@@ -1,0 +1,10 @@
+id: gen004_manual_202605060245_concise_self_improve
+generation: 4
+created_at: '2026-05-06T02:45:00+09:00'
+description: Manual prompt improvement for concise feedback-aware self-improvement.
+mutable_files:
+- task_prompt.md
+- meta_prompt.md
+- tool_policy.yaml
+- memory_policy.yaml
+- helpers.py

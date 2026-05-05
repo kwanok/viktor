@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from viktor_dgmh.archive import get_active_agent_id, init_workspace, load_agent, set_active_agent
+from viktor_dgmh.defaults import SEED_TASK_PROMPT
 from viktor_dgmh.selection import select_parent
 from tests.workspace import workspace_ctx
 
@@ -22,6 +23,11 @@ class ArchiveTests(unittest.TestCase):
             init_workspace(root)
             set_active_agent(root, "gen000_seed")
             self.assertEqual(select_parent(root), "gen000_seed")
+
+    def test_seed_prompt_prefers_concise_feedback_aware_self_improvement(self) -> None:
+        self.assertIn("one short sentence first", SEED_TASK_PROMPT)
+        self.assertIn("direct user feedback", SEED_TASK_PROMPT)
+        self.assertIn("improve yourself", SEED_TASK_PROMPT)
 
 
 if __name__ == "__main__":
