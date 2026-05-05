@@ -30,7 +30,7 @@ manage the credentials and use it as an experimental provider:
 ```powershell
 codex login
 $env:MODEL_PROVIDER="codex_cli"
-$env:CODEX_CLI_MODEL="gpt-5.3-codex"
+$env:CODEX_CLI_MODEL="gpt-5.5"
 python -m viktor_dgmh run --generations 1 --children 1
 ```
 

@@ -67,7 +67,7 @@ class CodexCliProvider:
     @classmethod
     def from_env(cls, cwd: Path | None = None) -> "CodexCliProvider":
         return cls(
-            model=os.environ.get("CODEX_CLI_MODEL", os.environ.get("MODEL", "gpt-5.3-codex")),
+            model=os.environ.get("CODEX_CLI_MODEL", os.environ.get("MODEL", "gpt-5.5")),
             codex_bin=os.environ.get("CODEX_CLI_BIN", "codex"),
             cwd=cwd,
             timeout_seconds=int(os.environ.get("CODEX_CLI_TIMEOUT", "600")),
@@ -174,7 +174,7 @@ def provider_from_config(config, *, root: Path | None = None, use_fake: bool = F
         return CodexCliProvider(
             model=os.environ.get(
                 "CODEX_CLI_MODEL",
-                getattr(config, "codex_cli_model", os.environ.get("MODEL", "gpt-5.3-codex")),
+                getattr(config, "codex_cli_model", os.environ.get("MODEL", "gpt-5.5")),
             ),
             codex_bin=os.environ.get("CODEX_CLI_BIN", getattr(config, "codex_cli_bin", "codex")),
             cwd=root,
@@ -188,13 +188,17 @@ def provider_from_config(config, *, root: Path | None = None, use_fake: bool = F
 
 
 def _messages_to_prompt(messages: list[dict[str, str]], *, response_format: str | None = None) -> str:
-    parts = []
+    parts = [
+        "You are being used as a non-interactive chat completion provider for viktor_dgmh.",
+        "Return only the assistant's final answer to the last user message.",
+        "Do not ask for missing context unless the last user message is genuinely impossible to answer.",
+    ]
     if response_format == "json":
         parts.append("Return only valid JSON. Do not include Markdown fences or commentary.")
     for message in messages:
-        role = message.get("role", "user").upper()
+        role = message.get("role", "user").lower()
         content = message.get("content", "")
-        parts.append(f"{role}:\n{content}")
+        parts.append(f"<{role}>\n{content}\n</{role}>")
     return "\n\n".join(parts).strip() + "\n"
 
 

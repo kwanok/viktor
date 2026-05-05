@@ -11,10 +11,10 @@ from viktor_dgmh.models import Config
 
 class CodexCliProviderTests(unittest.TestCase):
     def test_provider_from_config_selects_codex_cli(self) -> None:
-        config = Config(MODEL_PROVIDER="codex_cli", MODEL="gpt-5.5", CODEX_CLI_MODEL="gpt-5.3-codex")
+        config = Config(MODEL_PROVIDER="codex_cli", MODEL="gpt-5.5", CODEX_CLI_MODEL="gpt-5.5")
         provider = provider_from_config(config, root=Path.cwd())
         self.assertIsInstance(provider, CodexCliProvider)
-        self.assertEqual(provider.model, "gpt-5.3-codex")
+        self.assertEqual(provider.model, "gpt-5.5")
 
     def test_codex_cli_command_is_read_only_and_ephemeral(self) -> None:
         provider = CodexCliProvider(model="gpt-test", codex_bin="codex-test", cwd=Path.cwd())
