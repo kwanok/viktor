@@ -37,6 +37,9 @@ class OpenAICompatibleProvider:
         except ImportError as exc:
             raise RuntimeError("The openai package is not installed. Use --fake or install dependencies.") from exc
 
+        if self.base_url.rstrip("/") == "https://api.openai.com/v1" and not self.api_key:
+            raise RuntimeError("Set OPENAI_API_KEY for OpenAI API calls, or set MODEL_PROVIDER=codex_cli to use Codex CLI login.")
+
         client = OpenAI(base_url=self.base_url, api_key=self.api_key or "not-needed")
         kwargs = {
             "model": model or self.model,

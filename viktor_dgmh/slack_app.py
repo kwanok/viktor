@@ -42,6 +42,8 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
     if not bot_token or not app_token:
         raise RuntimeError("Set SLACK_BOT_TOKEN and SLACK_APP_TOKEN before running the Slack app.")
 
+    if not os.environ.get("MODEL_PROVIDER") and not os.environ.get("OPENAI_API_KEY"):
+        config.model_provider = "codex_cli"
     provider = provider_from_config(config, root=root, use_fake=use_fake)
     app = App(token=bot_token)
 
@@ -138,4 +140,3 @@ def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger) -
 
 def _strip_bot_mentions(text: str) -> str:
     return re.sub(r"<@[A-Z0-9]+>", "", text)
-

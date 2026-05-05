@@ -77,9 +77,12 @@ Required environment:
 ```bash
 export SLACK_BOT_TOKEN="xoxb-..."
 export SLACK_APP_TOKEN="xapp-..."
-export MODEL_PROVIDER="codex_cli"
 export CODEX_CLI_MODEL="gpt-5.5"
 ```
+
+`MODEL_PROVIDER` defaults to `codex_cli` in `config.yaml`. If you want to use
+the OpenAI API directly instead, set `MODEL_PROVIDER=openai` and provide
+`OPENAI_API_KEY`.
 
 Run locally:
 

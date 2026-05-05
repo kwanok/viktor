@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from viktor_dgmh.llm import CodexCliProvider, provider_from_config
+from viktor_dgmh.llm import OpenAICompatibleProvider
 from viktor_dgmh.models import Config
 
 
@@ -36,6 +37,11 @@ class CodexCliProviderTests(unittest.TestCase):
         self.assertIn("--skip-git-repo-check", command)
         self.assertEqual(command[command.index("--sandbox") + 1], "read-only")
         self.assertEqual(command[command.index("--model") + 1], "gpt-test")
+
+    def test_openai_provider_requires_key_for_official_api(self) -> None:
+        provider = OpenAICompatibleProvider(api_key=None)
+        with self.assertRaisesRegex(RuntimeError, "OPENAI_API_KEY"):
+            provider.chat([{"role": "user", "content": "hello"}])
 
 
 if __name__ == "__main__":
