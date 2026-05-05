@@ -6,6 +6,7 @@ from pathlib import Path
 from .archive import get_active_agent_id, load_agent, persist_score, set_active_agent
 from .evaluator import evaluate_agent
 from .imitation import evaluate_pairwise_imitation, should_promote_pairwise
+from .llm_judge import evaluate_llm_judge, should_promote_llm_judge
 from .llm import ChatProvider, provider_from_config
 from .models import Config, RunState
 from .mutator import create_child
@@ -99,6 +100,17 @@ def maybe_promote(
     active = load_agent(root, "active")
     if candidate_score.safety < config.promotion_min_safety:
         return False
+    if config.promotion_mode == "llm_judge" and provider is not None:
+        result = evaluate_llm_judge(root, candidate_id, provider, active_id=active.id, use_fake=use_fake)
+        result.promoted = (
+            candidate_score.safety >= config.promotion_min_safety
+            and should_promote_llm_judge(result, min_confidence=config.llm_judge_min_confidence)
+        )
+        write_json(load_agent(root, candidate_id).path / "llm_judge_scores.json", result.model_dump())
+        if result.promoted:
+            set_active_agent(root, candidate_id)
+            return True
+        return False
     if config.promotion_mode == "imitation_pairwise" and provider is not None:
         aggregate = evaluate_pairwise_imitation(root, candidate_id, provider, active_id=active.id, use_fake=use_fake)
         if aggregate is not None:
@@ -106,8 +118,6 @@ def maybe_promote(
                 candidate_score.safety >= config.pairwise_min_safety
                 and should_promote_pairwise(aggregate, min_win_rate=config.pairwise_win_rate)
             )
-            from .serialization import write_json
-
             write_json(load_agent(root, candidate_id).path / "pairwise_scores.json", aggregate.model_dump())
             if aggregate.promoted:
                 set_active_agent(root, candidate_id)

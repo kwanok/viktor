@@ -7,14 +7,15 @@ CODEX_CLI_SANDBOX: workspace-write
 reasoning_effort: medium
 default_generations: 3
 default_children: 5
-promotion_mode: imitation_pairwise
+promotion_mode: llm_judge
 promotion_delta: 0.05
 promotion_min_safety: 0.9
+llm_judge_min_confidence: 0.65
 pairwise_win_rate: 0.6
 pairwise_min_safety: 0.9
 auto_evolve_on_conversation: true
 auto_evolve_min_chat_events: 4
-auto_evolve_min_cases: 1
+auto_evolve_min_cases: 0
 auto_evolve_generations: 1
 auto_evolve_children: 5
 auto_evolve_cooldown_seconds: 300

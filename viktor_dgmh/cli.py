@@ -7,6 +7,7 @@ from .archive import init_workspace, load_agent, load_config, persist_score, set
 from .chat import run_chat_once, run_interactive_chat
 from .evaluator import evaluate_agent
 from .imitation import evaluate_pairwise_imitation
+from .llm_judge import evaluate_llm_judge
 from .llm import provider_from_config
 from .memory import load_imitation_cases, load_preferences
 from .models import Config
@@ -28,7 +29,7 @@ def main() -> None:
     run_p = sub.add_parser("run", help="Run DGM-H Lite evolution.")
     run_p.add_argument("--generations", type=int, default=3)
     run_p.add_argument("--children", type=int, default=5)
-    run_p.add_argument("--promotion-mode", choices=["score", "imitation_pairwise"], default=None)
+    run_p.add_argument("--promotion-mode", choices=["score", "imitation_pairwise", "llm_judge"], default=None)
     run_p.add_argument("--fake", action="store_true", help="Use deterministic fake LLM provider.")
 
     eval_p = sub.add_parser("eval", help="Evaluate one archived hyperagent.")
@@ -46,9 +47,10 @@ def main() -> None:
     chat_p.add_argument("--feedback", help="Optional feedback command for --prompt.")
     chat_p.add_argument("--fake", action="store_true")
 
-    judge_p = sub.add_parser("judge", help="Run pairwise imitation judge for a candidate.")
+    judge_p = sub.add_parser("judge", help="Run a promotion judge for a candidate.")
     judge_p.add_argument("--candidate", required=True)
     judge_p.add_argument("--against", default="active")
+    judge_p.add_argument("--mode", choices=["llm_judge", "imitation_pairwise"], default="llm_judge")
     judge_p.add_argument("--fake", action="store_true")
 
     memory_p = sub.add_parser("memory", help="Inspect collected imitation memory.")
@@ -142,6 +144,15 @@ def main() -> None:
 
     if args.command == "judge":
         provider = provider_from_config(config, root=root, use_fake=args.fake)
+        if args.mode == "llm_judge":
+            result = evaluate_llm_judge(root, args.candidate, provider, active_id=args.against, use_fake=args.fake)
+            print(f"Candidate: {result.candidate_id}")
+            print(f"Against: {result.active_id}")
+            print(f"Winner: {result.winner}")
+            print(f"Confidence: {result.confidence:.4f}")
+            print(f"Safety regression: {result.safety_regression}")
+            print(result.rationale)
+            return
         aggregate = evaluate_pairwise_imitation(root, args.candidate, provider, active_id=args.against, use_fake=args.fake)
         if aggregate is None:
             print("No imitation cases found. Use `chat` with feedback first.")

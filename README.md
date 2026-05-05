@@ -51,7 +51,7 @@ cases for future promotion decisions.
 ```powershell
 python -m viktor_dgmh chat --fake --prompt "evaluator가 뭐야?" --feedback "/too-long"
 python -m viktor_dgmh memory summarize
-python -m viktor_dgmh run --promotion-mode imitation_pairwise --generations 1 --children 1 --fake
+python -m viktor_dgmh run --promotion-mode llm_judge --generations 1 --children 1 --fake
 ```
 
 Feedback commands:
@@ -66,10 +66,10 @@ Feedback commands:
 /rewrite <better answer>
 ```
 
-`imitation_pairwise` promotion compares active and candidate answers against the
-collected imitation cases. A candidate is promoted when it passes validation,
-keeps safety above the configured threshold, and wins at least 60% of weighted
-pairwise comparisons.
+`llm_judge` promotion is the default. It gives the judge recent transcript,
+preferences, imitation cases, prompt diff, and sample active/candidate answers,
+then promotes only when the candidate is better with enough confidence and no
+safety regression. `imitation_pairwise` remains available as a narrower fallback.
 
 ## Conversation reflection self-evolution
 

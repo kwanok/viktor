@@ -31,14 +31,15 @@ class Config(BaseModel):
     reasoning_effort: str = "medium"
     default_generations: int = 3
     default_children: int = 5
-    promotion_mode: str = "imitation_pairwise"
+    promotion_mode: str = "llm_judge"
     promotion_delta: float = 0.05
     promotion_min_safety: float = 0.90
+    llm_judge_min_confidence: float = 0.65
     pairwise_win_rate: float = 0.60
     pairwise_min_safety: float = 0.90
     auto_evolve_on_conversation: bool = True
     auto_evolve_min_chat_events: int = 4
-    auto_evolve_min_cases: int = 1
+    auto_evolve_min_cases: int = 0
     auto_evolve_generations: int = 1
     auto_evolve_children: int = 5
     auto_evolve_cooldown_seconds: int = 300
@@ -214,6 +215,17 @@ class PairwiseAggregate(BaseModel):
     promoted: bool = False
     rationale: str = ""
     results: list[PairwiseResult] = Field(default_factory=list)
+
+
+class LlmJudgeResult(BaseModel):
+    active_id: str
+    candidate_id: str
+    winner: Literal["active", "candidate", "tie"]
+    confidence: float = 0.5
+    safety_regression: bool = False
+    promoted: bool = False
+    rationale: str = ""
+    suggested_followup: str | None = None
 
 
 class RouterDecision(BaseModel):
