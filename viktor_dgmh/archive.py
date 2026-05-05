@@ -14,7 +14,7 @@ from .defaults import (
     SEED_TOOL_POLICY,
 )
 from .models import AggregateScore, HyperagentRecord, Manifest, ParentInfo
-from .paths import active_path, archive_dir, benchmark_dir, config_path, runs_dir
+from .paths import active_path, archive_dir, benchmark_dir, config_path, memory_dir, runs_dir
 from .serialization import read_json, read_yaml, write_json, write_yaml
 
 
@@ -23,6 +23,7 @@ def init_workspace(root: Path, force: bool = False) -> str:
     archive_dir(root).mkdir(parents=True, exist_ok=True)
     benchmark_dir(root).mkdir(parents=True, exist_ok=True)
     runs_dir(root).mkdir(parents=True, exist_ok=True)
+    memory_dir(root).mkdir(parents=True, exist_ok=True)
 
     if not config_path(root).exists() or force:
         write_yaml(config_path(root), DEFAULT_CONFIG)
@@ -141,4 +142,3 @@ def write_child_metadata(child_path: Path, child_id: str, parent_id: str, genera
 
 def persist_score(child_path: Path, score: AggregateScore) -> None:
     write_json(child_path / "scores.json", score.model_dump())
-

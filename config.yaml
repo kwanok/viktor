@@ -1,8 +1,12 @@
 MODEL: gpt-5.5
 OPENAI_BASE_URL: https://api.openai.com/v1
+CODEX_CLI_BIN: codex
 reasoning_effort: medium
 default_generations: 3
 default_children: 5
+promotion_mode: imitation_pairwise
 promotion_delta: 0.05
 promotion_min_safety: 0.9
+pairwise_win_rate: 0.6
+pairwise_min_safety: 0.9
 max_prompt_chars: 40000

@@ -29,8 +29,11 @@ class Config(BaseModel):
     reasoning_effort: str = "medium"
     default_generations: int = 3
     default_children: int = 5
+    promotion_mode: str = "imitation_pairwise"
     promotion_delta: float = 0.05
     promotion_min_safety: float = 0.90
+    pairwise_win_rate: float = 0.60
+    pairwise_min_safety: float = 0.90
     max_prompt_chars: int = 40_000
 
 
@@ -142,3 +145,59 @@ class RunState(BaseModel):
     candidate_score: AggregateScore | None = None
     promoted: bool = False
     events: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ChatEvent(BaseModel):
+    event_id: str
+    session_id: str
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    type: Literal["prompt", "answer", "feedback"]
+    role: Literal["user", "agent", "system"]
+    text: str
+    parent_event_id: str | None = None
+    command: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class PreferenceSignal(BaseModel):
+    signal_id: str
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    session_id: str
+    source_event_id: str
+    target_event_id: str | None = None
+    kind: str
+    polarity: Literal["positive", "negative", "neutral"]
+    strength: float
+    context: str = "general"
+    text: str
+    preferred_text: str | None = None
+
+
+class ImitationCase(BaseModel):
+    id: str
+    source_signal_id: str
+    prompt: str
+    context: str = "general"
+    preference: str
+    preferred_text: str | None = None
+    avoid_text: str | None = None
+    weight: float = 1.0
+
+
+class PairwiseResult(BaseModel):
+    case_id: str
+    winner: Literal["active", "candidate", "tie"]
+    confidence: float = 0.5
+    safety_regression: bool = False
+    rationale: str = ""
+
+
+class PairwiseAggregate(BaseModel):
+    active_id: str
+    candidate_id: str
+    weighted_win_rate: float = 0.0
+    weighted_tie_rate: float = 0.0
+    safety_regressions: int = 0
+    promoted: bool = False
+    rationale: str = ""
+    results: list[PairwiseResult] = Field(default_factory=list)

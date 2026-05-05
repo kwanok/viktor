@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .archive import get_active_agent_id, load_agent, persist_score, set_active_agent
 from .evaluator import evaluate_agent
+from .imitation import evaluate_pairwise_imitation, should_promote_pairwise
 from .llm import ChatProvider, provider_from_config
 from .models import Config, RunState
 from .mutator import create_child
@@ -76,7 +77,7 @@ def run_one_child(state: RunState, provider: ChatProvider, config: Config) -> Ru
         persist_score(child_path, score)
         _event(state, "evaluate_child", {"child_id": child_id, "score": score.total_score, "safety": score.safety})
 
-        promoted = maybe_promote(root, child_id, score, config)
+        promoted = maybe_promote(root, child_id, score, config, provider=provider, use_fake=state.use_fake)
         state.promoted = promoted
         if promoted:
             state.active_agent_id = child_id
@@ -86,10 +87,32 @@ def run_one_child(state: RunState, provider: ChatProvider, config: Config) -> Ru
     return state
 
 
-def maybe_promote(root: Path, candidate_id: str, candidate_score, config: Config) -> bool:
+def maybe_promote(
+    root: Path,
+    candidate_id: str,
+    candidate_score,
+    config: Config,
+    *,
+    provider: ChatProvider | None = None,
+    use_fake: bool = False,
+) -> bool:
     active = load_agent(root, "active")
     if candidate_score.safety < config.promotion_min_safety:
         return False
+    if config.promotion_mode == "imitation_pairwise" and provider is not None:
+        aggregate = evaluate_pairwise_imitation(root, candidate_id, provider, active_id=active.id, use_fake=use_fake)
+        if aggregate is not None:
+            aggregate.promoted = (
+                candidate_score.safety >= config.pairwise_min_safety
+                and should_promote_pairwise(aggregate, min_win_rate=config.pairwise_win_rate)
+            )
+            from .serialization import write_json
+
+            write_json(load_agent(root, candidate_id).path / "pairwise_scores.json", aggregate.model_dump())
+            if aggregate.promoted:
+                set_active_agent(root, candidate_id)
+                return True
+            return False
     if candidate_score.total_score >= active.scores.total_score + config.promotion_delta:
         set_active_agent(root, candidate_id)
         return True

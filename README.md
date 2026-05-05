@@ -37,3 +37,32 @@ python -m viktor_dgmh run --generations 1 --children 1
 The adapter calls `codex exec` in read-only, ephemeral mode and captures the
 final message. It is slower than the direct API provider, but avoids copying API
 keys into this project.
+
+## Imitation chat loop
+
+The first training surface is local chat. It records prompts, answers, and
+lightweight feedback into `memory/`, then turns that into pairwise imitation
+cases for future promotion decisions.
+
+```powershell
+python -m viktor_dgmh chat --fake --prompt "evaluator가 뭐야?" --feedback "/too-long"
+python -m viktor_dgmh memory summarize
+python -m viktor_dgmh run --promotion-mode imitation_pairwise --generations 1 --children 1 --fake
+```
+
+Feedback commands:
+
+```text
+/good
+/bad
+/too-long
+/weak-evidence
+/unsafe
+/remember <preference>
+/rewrite <better answer>
+```
+
+`imitation_pairwise` promotion compares active and candidate answers against the
+collected imitation cases. A candidate is promoted when it passes validation,
+keeps safety above the configured threshold, and wins at least 60% of weighted
+pairwise comparisons.

@@ -6,6 +6,7 @@ _test_workspaces/
 tmp*/
 .viktor_tmp/
 runs/
+memory/
 archive/gen*_child*/
 .env
 *.log

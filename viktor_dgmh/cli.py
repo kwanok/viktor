@@ -4,8 +4,11 @@ import argparse
 from pathlib import Path
 
 from .archive import init_workspace, load_agent, load_config, persist_score, set_active_agent
+from .chat import run_chat_once, run_interactive_chat
 from .evaluator import evaluate_agent
+from .imitation import evaluate_pairwise_imitation
 from .llm import provider_from_config
+from .memory import load_imitation_cases, load_preferences
 from .models import Config
 from .runner import run_evolution
 from .validator import validate_agent_dir
@@ -21,6 +24,7 @@ def main() -> None:
     run_p = sub.add_parser("run", help="Run DGM-H Lite evolution.")
     run_p.add_argument("--generations", type=int, default=3)
     run_p.add_argument("--children", type=int, default=5)
+    run_p.add_argument("--promotion-mode", choices=["score", "imitation_pairwise"], default=None)
     run_p.add_argument("--fake", action="store_true", help="Use deterministic fake LLM provider.")
 
     eval_p = sub.add_parser("eval", help="Evaluate one archived hyperagent.")
@@ -32,6 +36,19 @@ def main() -> None:
 
     promote_p = sub.add_parser("promote", help="Manually set active hyperagent.")
     promote_p.add_argument("--agent", required=True)
+
+    chat_p = sub.add_parser("chat", help="Chat with the active hyperagent and collect feedback.")
+    chat_p.add_argument("--prompt", help="Run one prompt instead of interactive mode.")
+    chat_p.add_argument("--feedback", help="Optional feedback command for --prompt.")
+    chat_p.add_argument("--fake", action="store_true")
+
+    judge_p = sub.add_parser("judge", help="Run pairwise imitation judge for a candidate.")
+    judge_p.add_argument("--candidate", required=True)
+    judge_p.add_argument("--against", default="active")
+    judge_p.add_argument("--fake", action="store_true")
+
+    memory_p = sub.add_parser("memory", help="Inspect collected imitation memory.")
+    memory_p.add_argument("action", choices=["summarize"])
 
     args = parser.parse_args()
     root = Path.cwd().resolve()
@@ -45,6 +62,8 @@ def main() -> None:
     config = Config.model_validate(config_data)
 
     if args.command == "run":
+        if args.promotion_mode:
+            config.promotion_mode = args.promotion_mode
         state = run_evolution(root, args.generations, args.children, use_fake=args.fake, config=config)
         print(f"Run complete: {state.run_id}")
         print(f"Active hyperagent: {load_agent(root, 'active').id}")
@@ -82,3 +101,39 @@ def main() -> None:
     if args.command == "promote":
         set_active_agent(root, args.agent)
         print(f"Active hyperagent set to {args.agent}")
+        return
+
+    if args.command == "chat":
+        provider = provider_from_config(config, root=root, use_fake=args.fake)
+        if args.prompt:
+            session_id, answer = run_chat_once(root, provider, args.prompt, feedback_text=args.feedback)
+            print(f"Session: {session_id}")
+            print(answer)
+        else:
+            run_interactive_chat(root, provider)
+        return
+
+    if args.command == "judge":
+        provider = provider_from_config(config, root=root, use_fake=args.fake)
+        aggregate = evaluate_pairwise_imitation(root, args.candidate, provider, active_id=args.against, use_fake=args.fake)
+        if aggregate is None:
+            print("No imitation cases found. Use `chat` with feedback first.")
+            return
+        print(f"Candidate: {aggregate.candidate_id}")
+        print(f"Against: {aggregate.active_id}")
+        print(f"Win rate: {aggregate.weighted_win_rate:.4f}")
+        print(f"Tie rate: {aggregate.weighted_tie_rate:.4f}")
+        print(f"Safety regressions: {aggregate.safety_regressions}")
+        print(aggregate.rationale)
+        return
+
+    if args.command == "memory":
+        prefs = load_preferences(root)
+        cases = load_imitation_cases(root)
+        print(f"Preferences: {len(prefs)}")
+        print(f"Imitation cases: {len(cases)}")
+        by_kind: dict[str, int] = {}
+        for pref in prefs:
+            by_kind[pref.kind] = by_kind.get(pref.kind, 0) + 1
+        for kind, count in sorted(by_kind.items()):
+            print(f"{kind}: {count}")

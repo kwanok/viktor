@@ -32,3 +32,16 @@ def append_jsonl(path: Path, data: Any) -> None:
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(data, ensure_ascii=False) + "\n")
 
+
+def read_jsonl(path: Path) -> list[Any]:
+    if not path.exists():
+        return []
+    rows = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid JSONL at {path}:{line_number}: {exc}") from exc
+    return rows
