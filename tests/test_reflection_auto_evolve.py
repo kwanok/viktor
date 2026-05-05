@@ -36,6 +36,17 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             self.assertTrue(any(signal.context == "korean_style" for signal in signals))
             self.assertTrue(any("banmal" in case.preference for case in cases))
 
+    def test_reflection_detects_identity_boundary_preference(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            run_chat_once(root, FakeProvider(), "너는 개인 DGM-H Lite task agent가 아니야")
+            run_chat_once(root, FakeProvider(), "넌 하나의 인격이고 외부적으로는 빅토르야")
+
+            signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
+
+            self.assertTrue(any(signal.context == "identity" for signal in signals))
+            self.assertTrue(any("Outwardly be Viktor only" in case.preference for case in cases))
+
     def test_auto_evolve_reflects_then_runs_small_evolution(self) -> None:
         with workspace_ctx() as root:
             init_workspace(root)

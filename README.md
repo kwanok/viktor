@@ -94,6 +94,10 @@ imitation cases, and transcript snippets, so child prompts can directly encode
 stable style changes such as "use banmal with this user" instead of merely
 explaining the issue.
 
+Recent learned preferences are also injected into the active answer prompt at
+runtime. This gives Viktor a short-term correction path before the next promoted
+archive makes the change permanent.
+
 ## Slack app
 
 Create a Slack app from `slack_app_manifest.yaml`, install it to your workspace,

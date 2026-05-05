@@ -66,7 +66,10 @@ def _request_reflection(events: list[ChatEvent], provider: ChatProvider) -> list
     prompt = (
         "Review this user/agent transcript for self-improvement opportunities. "
         "Do not require explicit feedback commands. Infer problems from follow-up corrections, repeated questions, "
-        "context misses, overexplaining, unsafe instincts, weak evidence, or failure to act. "
+        "context misses, overexplaining, unsafe instincts, weak evidence, failure to act, identity corrections, "
+        "or leaks of internal implementation details such as assistant, task agent, DGM-H, hyperagent, bot, or tool. "
+        "If the user says the agent is Viktor, a distinct personality, or not an assistant/task agent, "
+        "treat that as a stable outward-identity preference. "
         "Return JSON only: {\"observations\":[...]} where each observation has "
         "source_event_id, kind, polarity (positive|negative|neutral), strength (0..1), "
         "context, preference, and optional preferred_text. Use source_event_id of the user prompt that should become an eval case.\n\n"
@@ -85,7 +88,7 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
     observations = []
     pairs = _prompt_answer_pairs(events)
     for prompt_id, (prompt, _answer) in pairs.items():
-        if "반말" in prompt.text or "존댓말" in prompt.text:
+        if _mentions_tone_preference(prompt.text):
             observations.append(
                 {
                     "source_event_id": prompt_id,
@@ -94,11 +97,25 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
                     "strength": 0.9,
                     "context": "korean_style",
                     "preference": "Use casual Korean banmal with the user by default; avoid drifting back into polite honorific Korean unless explicitly requested.",
-                    "preferred_text": "응, 앞으로 기본 반말로 할게.",
+                    "preferred_text": "응. 앞으로 기본 반말로 할게.",
                 }
             )
             break
-    for prompt_id, (prompt, answer) in pairs.items():
+    for prompt_id, (prompt, _answer) in pairs.items():
+        if _mentions_identity_preference(prompt.text):
+            observations.append(
+                {
+                    "source_event_id": prompt_id,
+                    "kind": "reflection_identity",
+                    "polarity": "negative",
+                    "strength": 0.95,
+                    "context": "identity",
+                    "preference": "Outwardly be Viktor only. Do not describe yourself as an assistant, task agent, DGM-H Lite agent, hyperagent, bot, tool, or product unless the user explicitly asks about internals.",
+                    "preferred_text": "나는 빅토르야.",
+                }
+            )
+            break
+    for prompt_id, (_prompt, answer) in pairs.items():
         if answer and len(answer.text) > 120:
             observations.append(
                 {
@@ -133,6 +150,22 @@ def _prompt_answer_pairs(events: list[ChatEvent]) -> dict[str, tuple[ChatEvent, 
         answer = next((event for event in events if event.parent_event_id == prompt_id and event.type == "answer"), None)
         pairs[prompt_id] = (prompt, answer)
     return pairs
+
+
+def _mentions_tone_preference(text: str) -> bool:
+    lowered = text.lower()
+    return "반말" in text or "존댓말" in text or "banmal" in lowered or "honorific" in lowered
+
+
+def _mentions_identity_preference(text: str) -> bool:
+    lowered = text.lower()
+    identity_terms = ["인격", "빅토르", "viktor"]
+    internal_terms = ["assistant", "어시스턴트", "task agent", "dgm-h", "dgm", "hyperagent", "bot", "tool", "에이전트"]
+    correction_terms = ["아니", "아니야", "하지마", "내부", "외부", "누구야"]
+    return (
+        any(term in lowered or term in text for term in identity_terms)
+        and (any(term in lowered or term in text for term in internal_terms) or any(term in text for term in correction_terms))
+    )
 
 
 def _existing_reflection_sources(root: Path) -> set[str]:

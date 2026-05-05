@@ -29,6 +29,14 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn("direct user feedback", SEED_TASK_PROMPT)
         self.assertIn("improve yourself", SEED_TASK_PROMPT)
 
+    def test_seed_prompt_keeps_internal_identity_private(self) -> None:
+        first_line = SEED_TASK_PROMPT.splitlines()[0]
+        self.assertEqual(first_line, "You are Viktor.")
+        self.assertIn("Do not describe yourself as an assistant", SEED_TASK_PROMPT)
+        self.assertIn("DGM-H", SEED_TASK_PROMPT)
+        self.assertIn("internal implementation", SEED_TASK_PROMPT)
+        self.assertIn("casual Korean banmal", SEED_TASK_PROMPT)
+
 
 if __name__ == "__main__":
     unittest.main()
