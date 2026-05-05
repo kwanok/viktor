@@ -37,6 +37,9 @@ class Config(BaseModel):
     pairwise_min_safety: float = 0.90
     slack_auto_respond_channels: bool = True
     slack_min_respond_score: float = 0.65
+    slack_shell_enabled: bool = False
+    slack_shell_timeout_seconds: int = 60
+    slack_shell_max_output_chars: int = 3500
     max_prompt_chars: int = 40_000
 
 
@@ -248,3 +251,17 @@ class RouterMetrics(BaseModel):
     f1: float = 0.0
     false_positive_rate: float = 0.0
     false_negative_rate: float = 0.0
+
+
+class ShellCommandRecord(BaseModel):
+    command_id: str
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    user: str | None = None
+    channel: str | None = None
+    slack_ts: str | None = None
+    command: str
+    cwd: str
+    exit_code: int
+    stdout: str = ""
+    stderr: str = ""
+    timed_out: bool = False

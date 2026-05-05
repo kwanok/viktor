@@ -13,4 +13,7 @@ pairwise_win_rate: 0.6
 pairwise_min_safety: 0.9
 slack_auto_respond_channels: true
 slack_min_respond_score: 0.65
+slack_shell_enabled: false
+slack_shell_timeout_seconds: 60
+slack_shell_max_output_chars: 3500
 max_prompt_chars: 40000

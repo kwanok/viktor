@@ -21,12 +21,12 @@ class SlackAppTests(unittest.TestCase):
         self.assertGreaterEqual(decision.score, 0.65)
 
     def test_channel_router_stays_silent_for_chatter(self) -> None:
-        decision = should_respond_to_channel_message("ㅇㅋ ㅋㅋ", min_score=0.65)
+        decision = should_respond_to_channel_message("ㅋㅋ 그냥 잡담", min_score=0.65)
 
         self.assertFalse(decision.should_respond)
 
     def test_channel_router_responds_to_viktor_alias(self) -> None:
-        decision = should_respond_to_channel_message("빅토르 선생님 뭐하시나요", min_score=0.65)
+        decision = should_respond_to_channel_message("빅토르 선생님 뭐하시나요?", min_score=0.65)
 
         self.assertTrue(decision.should_respond)
 

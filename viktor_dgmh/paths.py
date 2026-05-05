@@ -59,6 +59,10 @@ def router_labels_path(root: Path) -> Path:
     return memory_dir(root) / "router_labels.jsonl"
 
 
+def shell_commands_path(root: Path) -> Path:
+    return memory_dir(root) / "shell_commands.jsonl"
+
+
 def config_path(root: Path) -> Path:
     return root / "config.yaml"
 

@@ -16,12 +16,13 @@ from .memory import (
     new_session_id,
 )
 from .models import ChatEvent, Config, RouterObservation
-from .router import (
-    ROUTER_REACTION_LABELS,
-    add_router_label_for_slack_message,
-    append_router_observation,
-    load_router_policy,
-    score_message,
+from .router import add_router_label_for_slack_message, append_router_observation, load_router_policy, score_message
+from .shell_runner import (
+    format_shell_result,
+    parse_shell_command,
+    run_shell_command,
+    shell_enabled,
+    shell_user_allowed,
 )
 
 REACTION_TO_FEEDBACK = {
@@ -58,7 +59,10 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
     def handle_app_mention(event, say, logger):
         text = _strip_bot_mentions(event.get("text", "")).strip()
         if not text:
-            say(text="무엇을 도와줄지 한 줄로 말해줘.", thread_ts=event.get("thread_ts") or event.get("ts"))
+            say(text="What should I help with?", thread_ts=event.get("thread_ts") or event.get("ts"))
+            return
+        if parse_shell_command(text):
+            _handle_shell_command(root, config, text, event, say, logger)
             return
         _answer_and_map(root, provider, text, event, say, logger)
 
@@ -67,11 +71,14 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
         if event.get("subtype") or event.get("bot_id"):
             return
         if event.get("channel_type") != "im":
-            if event.get("channel_type") == "channel":
+            if event.get("channel_type") in {"channel", "group"}:
                 _handle_channel_message(root, provider, config, event, say, logger)
             return
         text = event.get("text", "").strip()
         if not text:
+            return
+        if parse_shell_command(text):
+            _handle_shell_command(root, config, text, event, say, logger)
             return
         _answer_and_map(root, provider, text, event, say, logger)
 
@@ -105,9 +112,15 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
 
 
 def _handle_channel_message(root: Path, provider, config: Config, event: dict, say, logger) -> None:
-    enabled = _env_bool("SLACK_AUTO_RESPOND_CHANNELS", config.slack_auto_respond_channels)
     text = event.get("text", "").strip()
-    if not enabled or not text:
+    if not text:
+        return
+    if parse_shell_command(text):
+        _handle_shell_command(root, config, text, event, say, logger)
+        return
+
+    enabled = _env_bool("SLACK_AUTO_RESPOND_CHANNELS", config.slack_auto_respond_channels)
+    if not enabled:
         return
     policy = load_router_policy(root, "active")
     decision = score_message(text, policy)
@@ -119,6 +132,40 @@ def _handle_channel_message(root: Path, provider, config: Config, event: dict, s
         return
     logger.info("Responding in channel with score %.2f: %s", decision.score, decision.reason)
     _answer_and_map(root, provider, text, event, say, logger)
+
+
+def _handle_shell_command(root: Path, config: Config, text: str, event: dict, say, logger) -> None:
+    command = parse_shell_command(text)
+    thread_ts = event.get("thread_ts") or event.get("ts")
+    if not command:
+        return
+    if not shell_enabled(config):
+        say(
+            text="Shell command is disabled. Set `SLACK_ENABLE_SHELL=true` to enable it.",
+            thread_ts=thread_ts,
+        )
+        return
+    if not shell_user_allowed(event.get("user")):
+        say(
+            text="Shell command denied. Add your Slack user id to `SLACK_SHELL_ALLOWED_USERS`.",
+            thread_ts=thread_ts,
+        )
+        return
+    try:
+        record = run_shell_command(
+            root,
+            command,
+            config=config,
+            user=event.get("user"),
+            channel=event.get("channel"),
+            slack_ts=event.get("ts"),
+        )
+    except Exception as exc:
+        logger.exception("Failed to run Slack shell command")
+        say(text=f"Shell command failed before execution: {exc}", thread_ts=thread_ts)
+        return
+    logger.info("Ran Slack shell command %s with exit code %s", record.command_id, record.exit_code)
+    say(text=format_shell_result(record), thread_ts=thread_ts)
 
 
 def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger) -> None:
@@ -142,7 +189,7 @@ def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger) -
         answer = answer_with_agent(root, provider, text)
     except Exception as exc:
         logger.exception("Failed to answer Slack message")
-        say(text=f"답변 중 오류가 났어: {exc}", thread_ts=event.get("thread_ts") or event.get("ts"))
+        say(text=f"Answer failed: {exc}", thread_ts=event.get("thread_ts") or event.get("ts"))
         return
 
     answer_event = ChatEvent(

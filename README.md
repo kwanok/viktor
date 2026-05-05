@@ -115,6 +115,31 @@ If you already installed the app before enabling channel listening, update the
 Slack app manifest, reinstall the app, and invite the bot to any channel where
 it should observe messages.
 
+### Slack shell commands
+
+For local development, the Slack app can run explicit shell commands from the
+project root. This is disabled by default and should only be enabled for trusted
+Slack users.
+
+```bash
+export SLACK_ENABLE_SHELL=true
+export SLACK_SHELL_ALLOWED_USERS="U12345678"
+uv run -m viktor_dgmh slack serve
+```
+
+Then DM the bot, mention it, or send this in an invited channel:
+
+```text
+!sh pwd
+!bash uv run --extra test -m pytest -q
+```
+
+Commands run through `bash -lc`, time out after
+`slack_shell_timeout_seconds`, truncate output to
+`slack_shell_max_output_chars`, and append results to
+`memory/shell_commands.jsonl`. `SLACK_SHELL_ALLOW_ANY=true` exists for isolated
+local experiments, but it is intentionally not recommended.
+
 ## Self-evolving router
 
 The Slack channel router is versioned separately from the answer hyperagent. It
