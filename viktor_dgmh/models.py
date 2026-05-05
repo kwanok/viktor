@@ -40,7 +40,7 @@ class Config(BaseModel):
     auto_evolve_min_chat_events: int = 4
     auto_evolve_min_cases: int = 1
     auto_evolve_generations: int = 1
-    auto_evolve_children: int = 1
+    auto_evolve_children: int = 5
     auto_evolve_cooldown_seconds: int = 300
     slack_auto_respond_channels: bool = True
     slack_min_respond_score: float = 0.65

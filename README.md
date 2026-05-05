@@ -84,9 +84,10 @@ uv run -m viktor_dgmh self-evolve --fake
 ```
 
 When the Slack app answers, it schedules this reflection/evolution loop in the
-background, guarded by `auto_evolve_min_chat_events` and
-`auto_evolve_cooldown_seconds`. Direct reactions are still useful, but they are
-only an extra signal; the main loop learns from the conversation trace itself.
+background. By default it runs 1 generation x 5 children, guarded by
+`auto_evolve_min_chat_events` and `auto_evolve_cooldown_seconds`. Direct
+reactions are still useful, but they are only an extra signal; the main loop
+learns from the conversation trace itself.
 
 ## Slack app
 
