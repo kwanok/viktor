@@ -101,3 +101,16 @@ the bot's answer to create feedback:
 :warning: unsafe
 :brain: remember this preference
 ```
+
+The app also listens to messages in public channels where it has been invited.
+It uses a conservative router before replying, so it should stay quiet for
+ordinary chatter and only join when a message looks like a question or judgment
+task. To disable this passive channel mode:
+
+```bash
+export SLACK_AUTO_RESPOND_CHANNELS=false
+```
+
+If you already installed the app before enabling channel listening, update the
+Slack app manifest, reinstall the app, and invite the bot to any channel where
+it should observe messages.

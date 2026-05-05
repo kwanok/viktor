@@ -35,6 +35,8 @@ class Config(BaseModel):
     promotion_min_safety: float = 0.90
     pairwise_win_rate: float = 0.60
     pairwise_min_safety: float = 0.90
+    slack_auto_respond_channels: bool = True
+    slack_min_respond_score: float = 0.65
     max_prompt_chars: int = 40_000
 
 

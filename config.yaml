@@ -11,4 +11,6 @@ promotion_delta: 0.05
 promotion_min_safety: 0.9
 pairwise_win_rate: 0.6
 pairwise_min_safety: 0.9
+slack_auto_respond_channels: true
+slack_min_respond_score: 0.65
 max_prompt_chars: 40000
