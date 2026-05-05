@@ -26,6 +26,7 @@ class Config(BaseModel):
     model: str = Field(default="gpt-5.5", alias="MODEL")
     openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
     codex_cli_bin: str = Field(default="codex", alias="CODEX_CLI_BIN")
+    codex_cli_model: str = Field(default="gpt-5.3-codex", alias="CODEX_CLI_MODEL")
     reasoning_effort: str = "medium"
     default_generations: int = 3
     default_children: int = 5

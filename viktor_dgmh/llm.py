@@ -67,7 +67,7 @@ class CodexCliProvider:
     @classmethod
     def from_env(cls, cwd: Path | None = None) -> "CodexCliProvider":
         return cls(
-            model=os.environ.get("MODEL", "gpt-5.5"),
+            model=os.environ.get("CODEX_CLI_MODEL", os.environ.get("MODEL", "gpt-5.3-codex")),
             codex_bin=os.environ.get("CODEX_CLI_BIN", "codex"),
             cwd=cwd,
             timeout_seconds=int(os.environ.get("CODEX_CLI_TIMEOUT", "600")),
@@ -172,7 +172,10 @@ def provider_from_config(config, *, root: Path | None = None, use_fake: bool = F
     provider_name = os.environ.get("MODEL_PROVIDER", getattr(config, "model_provider", "openai")).lower()
     if provider_name in {"codex", "codex_cli", "openai-codex"}:
         return CodexCliProvider(
-            model=os.environ.get("MODEL", getattr(config, "model", "gpt-5.5")),
+            model=os.environ.get(
+                "CODEX_CLI_MODEL",
+                getattr(config, "codex_cli_model", os.environ.get("MODEL", "gpt-5.3-codex")),
+            ),
             codex_bin=os.environ.get("CODEX_CLI_BIN", getattr(config, "codex_cli_bin", "codex")),
             cwd=root,
         )
