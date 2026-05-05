@@ -5,6 +5,7 @@ from pathlib import Path
 
 from .archive import copy_parent_to_child, load_agent, next_agent_id, write_child_metadata
 from .llm import ChatProvider
+from .memory import load_imitation_cases, load_preferences, load_recent_chat_events
 from .models import AggregateScore
 from .serialization import write_json
 
@@ -22,7 +23,7 @@ def create_child(
     parent = load_agent(root, parent_id)
     child_id = next_agent_id(root, generation, child_index)
     child_path = copy_parent_to_child(root, parent_id, child_id)
-    proposal = _request_mutation(parent.path, parent.scores, provider, use_fake)
+    proposal = _request_mutation(root, parent.path, parent.scores, provider, use_fake)
     summary = proposal.get("mutation_summary", "meta-agent mutation")
     for filename, content in proposal.get("files", {}).items():
         if filename in MUTABLE_FILES:
@@ -33,14 +34,20 @@ def create_child(
     return child_id, child_path
 
 
-def _request_mutation(parent_path: Path, score: AggregateScore, provider: ChatProvider, use_fake: bool) -> dict:
+def _request_mutation(root: Path, parent_path: Path, score: AggregateScore, provider: ChatProvider, use_fake: bool) -> dict:
     files = {name: (parent_path / name).read_text(encoding="utf-8") for name in MUTABLE_FILES}
+    evolution_brief = _build_evolution_brief(root)
     prompt = {
         "role": "user",
         "content": (
             "Create a child hyperagent mutation. Return JSON only with keys "
             "`mutation_summary` and `files`. `files` may contain only task_prompt.md, "
             "meta_prompt.md, tool_policy.yaml, memory_policy.yaml, helpers.py.\n\n"
+            "Use the evolution brief as the primary source for what should change. "
+            "Stable user preferences, recurring corrections, and reflection-derived imitation cases "
+            "should be converted into concrete prompt/policy/helper edits. If the brief says the user "
+            "prefers banmal/casual Korean or dislikes honorific drift, encode that directly in task_prompt.md.\n\n"
+            f"Evolution brief:\n{json.dumps(evolution_brief, ensure_ascii=False, indent=2)}\n\n"
             f"Current aggregate score:\n{score.model_dump_json(indent=2)}\n\n"
             f"Current files:\n{json.dumps(files, ensure_ascii=False, indent=2)}"
         ),
@@ -55,6 +62,47 @@ def _request_mutation(parent_path: Path, score: AggregateScore, provider: ChatPr
     return parsed
 
 
+def _build_evolution_brief(root: Path) -> dict:
+    preferences = load_preferences(root)[-12:]
+    cases = load_imitation_cases(root)[-12:]
+    events = load_recent_chat_events(root, limit=20)
+    transcript = [
+        {
+            "event_id": event.event_id,
+            "session_id": event.session_id,
+            "type": event.type,
+            "role": event.role,
+            "text": event.text,
+        }
+        for event in events
+    ]
+    return {
+        "recent_preferences": [
+            {
+                "kind": pref.kind,
+                "polarity": pref.polarity,
+                "strength": pref.strength,
+                "context": pref.context,
+                "text": pref.text,
+                "preferred_text": pref.preferred_text,
+            }
+            for pref in preferences
+        ],
+        "recent_imitation_cases": [
+            {
+                "context": case.context,
+                "prompt": case.prompt,
+                "preference": case.preference,
+                "preferred_text": case.preferred_text,
+                "avoid_text": case.avoid_text,
+                "weight": case.weight,
+            }
+            for case in cases
+        ],
+        "recent_transcript": transcript,
+    }
+
+
 def _patch_summary(parent_path: Path, child_path: Path, summary: str) -> str:
     changed = []
     for filename in sorted(MUTABLE_FILES):
@@ -63,4 +111,3 @@ def _patch_summary(parent_path: Path, child_path: Path, summary: str) -> str:
         if old != new:
             changed.append(filename)
     return "# Mutation Summary\n\n" + summary + "\n\nChanged files: " + (", ".join(changed) if changed else "none") + "\n"
-

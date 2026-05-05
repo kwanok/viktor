@@ -89,6 +89,11 @@ background. By default it runs 1 generation x 5 children, guarded by
 reactions are still useful, but they are only an extra signal; the main loop
 learns from the conversation trace itself.
 
+The meta-agent receives an evolution brief containing recent preferences,
+imitation cases, and transcript snippets, so child prompts can directly encode
+stable style changes such as "use banmal with this user" instead of merely
+explaining the issue.
+
 ## Slack app
 
 Create a Slack app from `slack_app_manifest.yaml`, install it to your workspace,

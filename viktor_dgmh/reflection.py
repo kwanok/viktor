@@ -84,6 +84,20 @@ def _request_reflection(events: list[ChatEvent], provider: ChatProvider) -> list
 def _fake_observations(events: list[ChatEvent]) -> list[dict]:
     observations = []
     pairs = _prompt_answer_pairs(events)
+    for prompt_id, (prompt, _answer) in pairs.items():
+        if "반말" in prompt.text or "존댓말" in prompt.text:
+            observations.append(
+                {
+                    "source_event_id": prompt_id,
+                    "kind": "reflection_tone",
+                    "polarity": "negative",
+                    "strength": 0.9,
+                    "context": "korean_style",
+                    "preference": "Use casual Korean banmal with the user by default; avoid drifting back into polite honorific Korean unless explicitly requested.",
+                    "preferred_text": "응, 앞으로 기본 반말로 할게.",
+                }
+            )
+            break
     for prompt_id, (prompt, answer) in pairs.items():
         if answer and len(answer.text) > 120:
             observations.append(

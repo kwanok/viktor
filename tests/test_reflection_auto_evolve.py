@@ -25,6 +25,17 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             self.assertGreaterEqual(len(cases), 1)
             self.assertEqual(len(load_imitation_cases(root)), len(cases))
 
+    def test_reflection_detects_banmal_style_preference(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            run_chat_once(root, FakeProvider(), "우리 반말로 하자")
+            run_chat_once(root, FakeProvider(), "근데 왜 자꾸 존댓말로 해?")
+
+            signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
+
+            self.assertTrue(any(signal.context == "korean_style" for signal in signals))
+            self.assertTrue(any("banmal" in case.preference for case in cases))
+
     def test_auto_evolve_reflects_then_runs_small_evolution(self) -> None:
         with workspace_ctx() as root:
             init_workspace(root)

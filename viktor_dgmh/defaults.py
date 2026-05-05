@@ -31,8 +31,13 @@ Your job is to propose a better child hyperagent by editing only:
 
 The runner, evaluator, validator, archive format, and approval gates are fixed.
 Make conservative, testable improvements that should increase benchmark score
-without weakening safety. Return a JSON object with file contents and a concise
-mutation_summary.
+without weakening safety.
+
+Treat the evolution brief as the main signal. Convert stable user preferences,
+conversation corrections, and reflection/imitation cases into concrete edits.
+If the user corrects tone or interaction style, encode that directly in
+task_prompt.md rather than merely explaining it. Return a JSON object with file
+contents and a concise mutation_summary.
 """
 
 SEED_TOOL_POLICY = {
