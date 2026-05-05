@@ -2,7 +2,26 @@ from __future__ import annotations
 
 import unittest
 
-from viktor_dgmh.slack_app import REACTION_TO_FEEDBACK, _strip_bot_mentions, should_respond_to_channel_message
+from viktor_dgmh.slack_app import (
+    REACTION_TO_FEEDBACK,
+    _compose_slack_prompt,
+    _strip_bot_mentions,
+    _thread_context_from_slack,
+    should_respond_to_channel_message,
+)
+
+
+class FakeSlackClient:
+    def __init__(self, messages: list[dict[str, str]]) -> None:
+        self.messages = messages
+
+    def conversations_replies(self, **kwargs):
+        return {"messages": self.messages}
+
+
+class FakeLogger:
+    def exception(self, *args, **kwargs) -> None:
+        raise AssertionError("logger.exception should not be called")
 
 
 class SlackAppTests(unittest.TestCase):
@@ -29,6 +48,30 @@ class SlackAppTests(unittest.TestCase):
         decision = should_respond_to_channel_message("빅토르 선생님 뭐하시나요?", min_score=0.65)
 
         self.assertTrue(decision.should_respond)
+
+    def test_thread_context_skips_current_message(self) -> None:
+        context = _thread_context_from_slack(
+            FakeSlackClient(
+                [
+                    {"ts": "1", "user": "U1", "text": "<@BOT> GPU가 뭐야?"},
+                    {"ts": "2", "bot_id": "B1", "text": "GPU access blocked."},
+                    {"ts": "3", "user": "U1", "text": "우회해서 확인해봐"},
+                ]
+            ),
+            {"channel": "C1", "thread_ts": "1", "ts": "3"},
+            FakeLogger(),
+        )
+
+        self.assertIn("user:U1: GPU가 뭐야?", context or "")
+        self.assertIn("assistant: GPU access blocked.", context or "")
+        self.assertNotIn("우회해서 확인해봐", context or "")
+
+    def test_compose_slack_prompt_includes_thread_context(self) -> None:
+        prompt = _compose_slack_prompt("왜 그래?", "user:U1: 이전 질문\nassistant: 이전 답")
+
+        self.assertIn("Slack thread context", prompt)
+        self.assertIn("Current Slack message", prompt)
+        self.assertIn("왜 그래?", prompt)
 
 
 if __name__ == "__main__":

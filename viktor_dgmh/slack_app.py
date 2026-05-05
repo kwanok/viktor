@@ -56,7 +56,7 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
     app = App(token=bot_token)
 
     @app.event("app_mention")
-    def handle_app_mention(event, say, logger):
+    def handle_app_mention(event, say, logger, client):
         text = _strip_bot_mentions(event.get("text", "")).strip()
         if not text:
             say(text="What should I help with?", thread_ts=event.get("thread_ts") or event.get("ts"))
@@ -64,15 +64,16 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
         if parse_shell_command(text):
             _handle_shell_command(root, config, text, event, say, logger)
             return
-        _answer_and_map(root, provider, text, event, say, logger)
+        thread_context = _thread_context_from_slack(client, event, logger)
+        _answer_and_map(root, provider, text, event, say, logger, thread_context=thread_context)
 
     @app.event("message")
-    def handle_message(event, say, logger):
+    def handle_message(event, say, logger, client):
         if event.get("subtype") or event.get("bot_id"):
             return
         if event.get("channel_type") != "im":
             if event.get("channel_type") in {"channel", "group"}:
-                _handle_channel_message(root, provider, config, event, say, logger)
+                _handle_channel_message(root, provider, config, event, say, logger, client)
             return
         text = event.get("text", "").strip()
         if not text:
@@ -80,7 +81,8 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
         if parse_shell_command(text):
             _handle_shell_command(root, config, text, event, say, logger)
             return
-        _answer_and_map(root, provider, text, event, say, logger)
+        thread_context = _thread_context_from_slack(client, event, logger)
+        _answer_and_map(root, provider, text, event, say, logger, thread_context=thread_context)
 
     @app.event("reaction_added")
     def handle_reaction(event, logger):
@@ -111,7 +113,7 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
     SocketModeHandler(app, app_token).start()
 
 
-def _handle_channel_message(root: Path, provider, config: Config, event: dict, say, logger) -> None:
+def _handle_channel_message(root: Path, provider, config: Config, event: dict, say, logger, client=None) -> None:
     text = event.get("text", "").strip()
     if not text:
         return
@@ -131,7 +133,8 @@ def _handle_channel_message(root: Path, provider, config: Config, event: dict, s
         logger.debug("Staying silent in channel: %s", decision.reason)
         return
     logger.info("Responding in channel with score %.2f: %s", decision.score, decision.reason)
-    _answer_and_map(root, provider, text, event, say, logger)
+    thread_context = _thread_context_from_slack(client, event, logger)
+    _answer_and_map(root, provider, text, event, say, logger, thread_context=thread_context)
 
 
 def _handle_shell_command(root: Path, config: Config, text: str, event: dict, say, logger) -> None:
@@ -168,7 +171,49 @@ def _handle_shell_command(root: Path, config: Config, text: str, event: dict, sa
     say(text=format_shell_result(record), thread_ts=thread_ts)
 
 
-def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger) -> None:
+def _thread_context_from_slack(client, event: dict, logger, *, max_messages: int = 12) -> str | None:
+    if client is None:
+        return None
+    channel = event.get("channel")
+    thread_ts = event.get("thread_ts")
+    current_ts = event.get("ts")
+    if not channel or not thread_ts:
+        return None
+    try:
+        response = client.conversations_replies(channel=channel, ts=thread_ts, limit=max_messages, inclusive=True)
+    except Exception:
+        logger.exception("Failed to fetch Slack thread context")
+        return None
+
+    messages = response.get("messages", [])
+    lines = []
+    for message in messages[-max_messages:]:
+        if message.get("ts") == current_ts:
+            continue
+        text = _strip_bot_mentions(message.get("text", "")).strip()
+        if not text:
+            continue
+        speaker = "assistant" if message.get("bot_id") else f"user:{message.get('user', 'unknown')}"
+        lines.append(f"{speaker}: {text}")
+    if not lines:
+        return None
+    return "\n".join(lines)
+
+
+def _compose_slack_prompt(text: str, thread_context: str | None) -> str:
+    if not thread_context:
+        return text
+    return (
+        "Slack thread context, oldest to newest:\n"
+        f"{thread_context}\n\n"
+        "Current Slack message:\n"
+        f"{text}\n\n"
+        "Answer the current message using the thread context. "
+        "If the current message refers to previous messages, resolve that reference from the context."
+    )
+
+
+def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger, *, thread_context: str | None = None) -> None:
     session_id = f"slack_{event.get('channel')}_{event.get('thread_ts') or event.get('ts') or new_session_id()}"
     prompt_event = ChatEvent(
         event_id=new_event_id("prompt"),
@@ -181,12 +226,14 @@ def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger) -
             "channel": event.get("channel"),
             "ts": event.get("ts"),
             "user": event.get("user"),
+            "thread_ts": event.get("thread_ts"),
+            "thread_context": thread_context,
         },
     )
     append_chat_event(root, prompt_event)
 
     try:
-        answer = answer_with_agent(root, provider, text)
+        answer = answer_with_agent(root, provider, _compose_slack_prompt(text, thread_context))
     except Exception as exc:
         logger.exception("Failed to answer Slack message")
         say(text=f"Answer failed: {exc}", thread_ts=event.get("thread_ts") or event.get("ts"))

@@ -15,16 +15,20 @@ oauth_config:
       - app_mentions:read
       - chat:write
       - channels:history
+      - groups:history
       - im:history
       - im:read
       - im:write
+      - mpim:history
       - reactions:read
 settings:
   event_subscriptions:
     bot_events:
       - app_mention
       - message.channels
+      - message.groups
       - message.im
+      - message.mpim
       - reaction_added
   interactivity:
     is_enabled: false

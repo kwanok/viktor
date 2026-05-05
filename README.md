@@ -115,6 +115,11 @@ If you already installed the app before enabling channel listening, update the
 Slack app manifest, reinstall the app, and invite the bot to any channel where
 it should observe messages.
 
+When Viktor replies inside a Slack thread, it fetches recent messages from that
+same thread and includes them as context for the next answer. If you update the
+manifest after this change, reinstall the Slack app so the added history scopes
+take effect.
+
 ### Slack shell commands
 
 For local development, the Slack app can run explicit shell commands from the
