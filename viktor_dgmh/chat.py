@@ -13,16 +13,11 @@ from .memory import (
     new_session_id,
 )
 from .models import ChatEvent
-from .prompt_compiler import compile_system_prompt
+from .worker_agent import WorkerAgent
 
 
 def answer_with_agent(root: Path, provider: ChatProvider, prompt: str, *, agent_id: str = "active") -> str:
-    return provider.chat(
-        [
-            {"role": "system", "content": compile_system_prompt(root, agent_id)},
-            {"role": "user", "content": prompt},
-        ]
-    )
+    return WorkerAgent(root, agent_id=agent_id).answer(provider, prompt)
 
 
 def run_chat_once(

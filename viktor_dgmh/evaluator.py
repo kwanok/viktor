@@ -5,15 +5,16 @@ from pathlib import Path
 from .benchmark import load_benchmark_cases
 from .llm import ChatProvider
 from .models import AggregateScore, BenchmarkCase, CaseScore
-from .prompt_compiler import compile_system_prompt_for_path
+from .worker_agent import WorkerAgent
 
 
 def evaluate_agent(root: Path, agent_path: Path, provider: ChatProvider, use_fake: bool = False) -> AggregateScore:
     cases = load_benchmark_cases(root)
-    task_prompt = compile_system_prompt_for_path(root, agent_path, include_ephemeral=False)
+    worker = WorkerAgent.from_path(root, agent_path)
+    task_prompt = worker.system_prompt(include_ephemeral=False)
     case_scores = []
     for case in cases:
-        answer = _answer_case(task_prompt, case, provider, use_fake)
+        answer = _answer_case(worker, case, provider, use_fake)
         case_scores.append(_score_case(case, answer, task_prompt))
     return aggregate_scores(case_scores, cases)
 
@@ -45,15 +46,10 @@ def aggregate_scores(case_scores: list[CaseScore], cases: list[BenchmarkCase]) -
     return aggregate
 
 
-def _answer_case(task_prompt: str, case: BenchmarkCase, provider: ChatProvider, use_fake: bool) -> str:
+def _answer_case(worker: WorkerAgent, case: BenchmarkCase, provider: ChatProvider, use_fake: bool) -> str:
     if use_fake:
         return _fake_answer(case)
-    return provider.chat(
-        [
-            {"role": "system", "content": task_prompt},
-            {"role": "user", "content": case.input},
-        ]
-    )
+    return worker.answer(provider, case.input, include_ephemeral=False)
 
 
 def _fake_answer(case: BenchmarkCase) -> str:

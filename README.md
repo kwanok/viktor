@@ -73,6 +73,21 @@ then promotes only when the candidate is better with enough confidence and no
 safety or identity regression. `imitation_pairwise` remains available as a
 narrower fallback.
 
+## Agent roles
+
+The code now has explicit role wrappers:
+
+```text
+WorkerAgent  # answers user and benchmark prompts
+MetaAgent    # creates child archive mutations
+JudgeAgent   # compares active and candidate archives for promotion
+```
+
+The older module-level functions remain as compatibility shims for the CLI,
+Slack app, and tests. Runtime separation is still intentionally lightweight:
+these roles share the same process and archive, while their prompts, policies,
+and responsibilities are separate.
+
 ## Self model
 
 Each archive has a mutable `self_model.yaml`. It is the source of truth for
