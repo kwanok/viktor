@@ -9,7 +9,7 @@ import yaml
 from tests.workspace import workspace_ctx
 from viktor_dgmh.archive import init_workspace
 from viktor_dgmh.llm import FakeProvider
-from viktor_dgmh.memory import load_capability_gaps
+from viktor_dgmh.memory import load_capability_gaps, load_capability_work_items
 from viktor_dgmh.models import Config
 from viktor_dgmh.slack_app import (
     REACTION_TO_FEEDBACK,
@@ -177,8 +177,13 @@ class SlackAppTests(unittest.TestCase):
             self.assertEqual(gaps[0].requested_capability, "slack_reaction_add")
             self.assertEqual(gaps[0].required_changes, ["slack_scope", "code", "restart"])
             self.assertTrue(gaps[0].requires_restart)
+            work_items = load_capability_work_items(root)
+            self.assertEqual(len(work_items), 1)
+            self.assertEqual(work_items[0].gap_id, gaps[0].gap_id)
+            self.assertEqual(work_items[0].status, "blocked")
             joined_prompt = "\n".join(message["content"] for message in provider.messages)
             self.assertIn("capability gap was recorded", joined_prompt)
+            self.assertIn("capability work item exists but is blocked", joined_prompt)
 
     def test_slack_reaction_capability_gap_is_not_duplicated(self) -> None:
         with workspace_ctx() as root:
@@ -210,6 +215,7 @@ class SlackAppTests(unittest.TestCase):
                 )
 
             self.assertEqual(len(load_capability_gaps(root)), 1)
+            self.assertEqual(len(load_capability_work_items(root)), 1)
 
     def test_manifest_does_not_grant_reaction_write_scope_yet(self) -> None:
         manifest = yaml.safe_load((Path.cwd() / "slack_app_manifest.yaml").read_text(encoding="utf-8"))

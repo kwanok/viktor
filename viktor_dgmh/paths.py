@@ -43,6 +43,10 @@ def capability_gaps_path(root: Path) -> Path:
     return memory_dir(root) / "capability_gaps.jsonl"
 
 
+def capability_work_path(root: Path) -> Path:
+    return memory_dir(root) / "capability_work.jsonl"
+
+
 def auto_evolve_state_path(root: Path) -> Path:
     return memory_dir(root) / "auto_evolve_state.json"
 

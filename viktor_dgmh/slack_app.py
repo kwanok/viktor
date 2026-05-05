@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .archive import get_active_agent_id
 from .auto_evolve import schedule_auto_evolve_after_conversation
+from .capability_work import request_capability_work
 from .chat import answer_with_agent, record_feedback
 from .llm import provider_from_config
 from .memory import (
@@ -18,7 +19,7 @@ from .memory import (
     new_event_id,
     new_session_id,
 )
-from .models import CapabilityGap, ChatEvent, Config, RouterObservation
+from .models import CapabilityGap, CapabilityWorkItem, ChatEvent, Config, RouterObservation
 from .router import add_router_label_for_slack_message, append_router_observation, load_router_policy, score_message
 from .shell_runner import (
     format_shell_result,
@@ -278,11 +279,7 @@ def _record_slack_capability_gap_if_needed(
         return None
 
     for gap in load_capability_gaps(root):
-        if (
-            gap.status in {"open", "planned"}
-            and gap.requested_capability == "slack_reaction_add"
-            and gap.failure_mode == "missing_slack_action_capability"
-        ):
+        if gap.status in {"open", "planned"} and _is_slack_reaction_capability_gap(gap):
             return gap
 
     gap = CapabilityGap(
@@ -302,6 +299,15 @@ def _record_slack_capability_gap_if_needed(
     if logger:
         logger.info("Recorded Slack capability gap %s for %s", gap.gap_id, gap.requested_capability)
     return gap
+
+
+def _is_slack_reaction_capability_gap(gap: CapabilityGap) -> bool:
+    text = " ".join([gap.requested_capability, gap.failure_mode, gap.summary]).lower()
+    return (
+        gap.requested_capability == "slack_reaction_add"
+        or ("slack" in text and "reaction" in text)
+        or (":eyes:" in text and any(token in text for token in ["reaction", "emoji"]))
+    )
 
 
 def _looks_like_slack_reaction_gap(text: str, thread_context: str | None) -> bool:
@@ -337,12 +343,23 @@ def _slack_capability_gap_evidence(text: str, thread_context: str | None, event:
     return evidence
 
 
-def _capability_gap_prompt_note(gap: CapabilityGap) -> str:
+def _capability_gap_prompt_note(gap: CapabilityGap, work_item: CapabilityWorkItem | None = None) -> str:
+    work_text = ""
+    if work_item and work_item.status == "blocked":
+        work_text = (
+            f" A capability work item exists but is blocked: {work_item.blocked_reason}. "
+            "Name the blocker directly and do not imply it was completed."
+        )
+    elif work_item:
+        work_text = (
+            f" A capability work item is {work_item.status}. "
+            "Say that the request has moved into Viktor's self-evolution work path."
+        )
     return (
         "System note before answering: a capability gap was recorded for "
         f"{gap.requested_capability}. Do not claim the Slack action is implemented or already done. "
-        "Answer briefly that the gap is now recorded as self-evolution input, and keep the actual "
-        "Slack reaction capability as future work."
+        "Do not stop at vague future-work language."
+        f"{work_text}"
     )
 
 
@@ -386,8 +403,12 @@ def _answer_and_map(
     try:
         prompt_text = _compose_slack_prompt(text, thread_context)
         gap = _record_slack_capability_gap_if_needed(root, text, thread_context, event, logger)
+        work_item = None
         if gap:
-            prompt_text = f"{_capability_gap_prompt_note(gap)}\n\n{prompt_text}"
+            work_item = request_capability_work(root, gap, source="slack_message", requested_by=event.get("user"))
+            if logger:
+                logger.info("Capability work %s is %s for gap %s", work_item.work_id, work_item.status, gap.gap_id)
+            prompt_text = f"{_capability_gap_prompt_note(gap, work_item)}\n\n{prompt_text}"
         answer = answer_with_agent(root, provider, prompt_text)
     except Exception as exc:
         logger.exception("Failed to answer Slack message")

@@ -117,6 +117,54 @@ class CliTests(unittest.TestCase):
             self.assertEqual(inspect_result.returncode, 0, inspect_result.stderr)
             self.assertIn("runtime_supervised_restart", inspect_result.stdout)
 
+    def test_cli_capability_work_and_work_list(self) -> None:
+        with workspace_ctx() as root:
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(Path.cwd())
+            init_result = subprocess.run(
+                [sys.executable, "-m", "viktor_dgmh", "init"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(init_result.returncode, 0, init_result.stderr)
+            append_capability_gap(
+                root,
+                CapabilityGap(
+                    gap_id="gap_work_cli",
+                    source="test",
+                    summary="Need Slack reaction capability.",
+                    requested_capability="slack_reaction_add",
+                    failure_mode="missing_slack_action_capability",
+                    required_changes=["slack_scope", "code", "restart"],
+                    requires_restart=True,
+                ),
+            )
+
+            work_result = subprocess.run(
+                [sys.executable, "-m", "viktor_dgmh", "capability", "work", "--gap", "gap_work_cli"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            list_result = subprocess.run(
+                [sys.executable, "-m", "viktor_dgmh", "capability", "work-list"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(work_result.returncode, 0, work_result.stderr)
+            self.assertIn("Status: blocked", work_result.stdout)
+            self.assertEqual(list_result.returncode, 0, list_result.stderr)
+            self.assertIn("gap_work_cli", list_result.stdout)
+
     def test_cli_runtime_request_restart_and_status(self) -> None:
         with workspace_ctx() as root:
             env = os.environ.copy()

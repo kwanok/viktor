@@ -4,12 +4,19 @@ import argparse
 from pathlib import Path
 
 from .archive import init_workspace, load_agent, load_config, persist_score, set_active_agent
+from .capability_work import request_capability_work
 from .chat import run_chat_once, run_interactive_chat
 from .evaluator import evaluate_agent
 from .imitation import evaluate_pairwise_imitation
 from .llm_judge import evaluate_llm_judge
 from .llm import provider_from_config
-from .memory import find_capability_gap, load_capability_gaps, load_imitation_cases, load_preferences
+from .memory import (
+    find_capability_gap,
+    load_capability_gaps,
+    load_capability_work_items,
+    load_imitation_cases,
+    load_preferences,
+)
 from .models import Config
 from .prompt_compiler import load_self_model
 from .auto_evolve import run_auto_evolve_once
@@ -70,6 +77,11 @@ def main() -> None:
     capability_sub.add_parser("list", help="List capability gaps.")
     capability_inspect_p = capability_sub.add_parser("inspect", help="Inspect one capability gap.")
     capability_inspect_p.add_argument("--gap", required=True)
+    capability_work_p = capability_sub.add_parser("work", help="Create a capability work item for a gap.")
+    capability_work_p.add_argument("--gap", required=True)
+    capability_work_p.add_argument("--source", default="cli")
+    capability_work_p.add_argument("--requested-by", default=None)
+    capability_sub.add_parser("work-list", help="List capability work items.")
 
     runtime_p = sub.add_parser("runtime", help="Inspect and request runtime lifecycle changes.")
     runtime_sub = runtime_p.add_subparsers(dest="runtime_command", required=True)
@@ -235,6 +247,24 @@ def main() -> None:
                 print(f"Unknown capability gap: {args.gap}")
                 return
             _print_capability_gap(gap)
+            return
+        if args.capability_command == "work":
+            gap = find_capability_gap(root, args.gap)
+            if gap is None:
+                print(f"Unknown capability gap: {args.gap}")
+                return
+            item = request_capability_work(root, gap, source=args.source, requested_by=args.requested_by)
+            print(f"Capability work: {item.work_id}")
+            print(f"Status: {item.status}")
+            print(f"Gap: {item.gap_id}")
+            if item.blocked_reason:
+                print(f"Blocked: {item.blocked_reason}")
+            return
+        if args.capability_command == "work-list":
+            items = load_capability_work_items(root)
+            print(f"Capability work items: {len(items)}")
+            for item in items:
+                print(f"{item.work_id} {item.status} gap={item.gap_id}: {item.summary}")
             return
 
     if args.command == "runtime":

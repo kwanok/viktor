@@ -363,6 +363,22 @@ class CapabilityGap(BaseModel):
     status: Literal["open", "planned", "resolved", "dismissed"] = "open"
 
 
+class CapabilityWorkItem(BaseModel):
+    work_id: str
+    gap_id: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    updated_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    source: str = "manual"
+    requested_by: str | None = None
+    status: Literal["queued", "running", "blocked", "completed", "failed"] = "queued"
+    summary: str
+    required_changes: list[str] = Field(default_factory=list)
+    requires_restart: bool = False
+    blocked_reason: str | None = None
+    result: str | None = None
+    restart_request_id: str | None = None
+
+
 class PairwiseResult(BaseModel):
     case_id: str
     winner: Literal["active", "candidate", "tie"]
