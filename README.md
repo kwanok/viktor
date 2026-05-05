@@ -71,6 +71,23 @@ collected imitation cases. A candidate is promoted when it passes validation,
 keeps safety above the configured threshold, and wins at least 60% of weighted
 pairwise comparisons.
 
+## Conversation reflection self-evolution
+
+Viktor can also create imitation cases without explicit feedback commands. The
+reflection loop reviews recent chat transcripts for context misses, overlong
+answers, repeated corrections, weak evidence, unsafe instincts, or failure to
+act, then stores inferred preferences and pairwise eval cases.
+
+```bash
+uv run -m viktor_dgmh reflect --fake
+uv run -m viktor_dgmh self-evolve --fake
+```
+
+When the Slack app answers, it schedules this reflection/evolution loop in the
+background, guarded by `auto_evolve_min_chat_events` and
+`auto_evolve_cooldown_seconds`. Direct reactions are still useful, but they are
+only an extra signal; the main loop learns from the conversation trace itself.
+
 ## Slack app
 
 Create a Slack app from `slack_app_manifest.yaml`, install it to your workspace,

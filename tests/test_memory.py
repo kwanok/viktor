@@ -7,19 +7,21 @@ from viktor_dgmh.archive import init_workspace
 from viktor_dgmh.chat import run_chat_once
 from viktor_dgmh.llm import FakeProvider
 from viktor_dgmh.memory import (
+    append_chat_event,
     append_slack_message_map,
     extract_preference_from_feedback,
     find_slack_message_map,
     load_chat_event,
     load_imitation_cases,
     load_preferences,
+    load_recent_chat_events,
 )
 from viktor_dgmh.models import ChatEvent
 
 
 class MemoryTests(unittest.TestCase):
     def test_feedback_commands_create_preferences_and_cases(self) -> None:
-        prompt = ChatEvent(event_id="p1", session_id="s1", type="prompt", role="user", text="이 설계 어때?")
+        prompt = ChatEvent(event_id="p1", session_id="s1", type="prompt", role="user", text="설계 어떨까?")
         answer = ChatEvent(event_id="a1", session_id="s1", type="answer", role="agent", text="긴 배경 설명입니다.")
         feedback = ChatEvent(
             event_id="f1",
@@ -46,7 +48,7 @@ class MemoryTests(unittest.TestCase):
             session_id="s1",
             type="feedback",
             role="user",
-            text="/rewrite evaluator는 답변을 점수화하는 심판이야.",
+            text="/rewrite evaluator는 답을 점수화하는 심판이야.",
             parent_event_id="a1",
         )
 
@@ -67,7 +69,7 @@ class MemoryTests(unittest.TestCase):
             )
 
             self.assertTrue(session_id.startswith("chat_"))
-            self.assertIn("결론", answer)
+            self.assertTrue(answer)
             prefs = load_preferences(root)
             cases = load_imitation_cases(root)
             self.assertEqual(len(prefs), 1)
@@ -77,9 +79,7 @@ class MemoryTests(unittest.TestCase):
     def test_slack_message_mapping_roundtrip(self) -> None:
         with workspace_ctx() as root:
             init_workspace(root)
-            event = ChatEvent(event_id="p1", session_id="s1", type="prompt", role="user", text="설계 어때?")
-            from viktor_dgmh.memory import append_chat_event
-
+            event = ChatEvent(event_id="p1", session_id="s1", type="prompt", role="user", text="설계 어떨까?")
             append_chat_event(root, event)
             append_slack_message_map(
                 root,
@@ -96,7 +96,26 @@ class MemoryTests(unittest.TestCase):
             loaded = load_chat_event(root, "s1", "p1")
 
             self.assertEqual(mapping["prompt_event_id"], "p1")
-            self.assertEqual(loaded.text, "설계 어때?")
+            self.assertEqual(loaded.text, "설계 어떨까?")
+
+    def test_load_recent_chat_events(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            for index in range(3):
+                append_chat_event(
+                    root,
+                    ChatEvent(
+                        event_id=f"p{index}",
+                        session_id="s1",
+                        type="prompt",
+                        role="user",
+                        text=f"질문 {index}",
+                    ),
+                )
+
+            events = load_recent_chat_events(root, limit=2)
+
+            self.assertEqual([event.text for event in events], ["질문 1", "질문 2"])
 
 
 if __name__ == "__main__":

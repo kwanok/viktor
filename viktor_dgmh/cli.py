@@ -10,6 +10,8 @@ from .imitation import evaluate_pairwise_imitation
 from .llm import provider_from_config
 from .memory import load_imitation_cases, load_preferences
 from .models import Config
+from .auto_evolve import run_auto_evolve_once
+from .reflection import reflect_on_recent_conversation
 from .runner import run_evolution
 from .router import ensure_router, evaluate_router, evolve_router, load_router_policy, promote_router
 from .slack_app import serve_slack_app
@@ -51,6 +53,13 @@ def main() -> None:
 
     memory_p = sub.add_parser("memory", help="Inspect collected imitation memory.")
     memory_p.add_argument("action", choices=["summarize"])
+
+    reflect_p = sub.add_parser("reflect", help="Reflect on recent chat and create imitation cases.")
+    reflect_p.add_argument("--fake", action="store_true")
+    reflect_p.add_argument("--max-events", type=int, default=40)
+
+    self_evolve_p = sub.add_parser("self-evolve", help="Reflect on conversation memory, then run a small evolution.")
+    self_evolve_p.add_argument("--fake", action="store_true")
 
     slack_p = sub.add_parser("slack", help="Run Slack app integrations.")
     slack_sub = slack_p.add_subparsers(dest="slack_command", required=True)
@@ -155,6 +164,23 @@ def main() -> None:
             by_kind[pref.kind] = by_kind.get(pref.kind, 0) + 1
         for kind, count in sorted(by_kind.items()):
             print(f"{kind}: {count}")
+        return
+
+    if args.command == "reflect":
+        provider = provider_from_config(config, root=root, use_fake=args.fake)
+        signals, cases = reflect_on_recent_conversation(root, provider, max_events=args.max_events, use_fake=args.fake)
+        print(f"Reflection signals: {len(signals)}")
+        print(f"Imitation cases: {len(cases)}")
+        return
+
+    if args.command == "self-evolve":
+        provider = provider_from_config(config, root=root, use_fake=args.fake)
+        state = run_auto_evolve_once(root, config, provider, use_fake=args.fake, reason="cli_self_evolve")
+        if state is None:
+            print("Self-evolve skipped. Check memory/auto_evolve_state.json for the reason.")
+            return
+        print(f"Self-evolve complete: {state.run_id}")
+        print(f"Active hyperagent: {load_agent(root, 'active').id}")
         return
 
     if args.command == "slack":

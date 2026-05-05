@@ -36,6 +36,12 @@ class Config(BaseModel):
     promotion_min_safety: float = 0.90
     pairwise_win_rate: float = 0.60
     pairwise_min_safety: float = 0.90
+    auto_evolve_on_conversation: bool = True
+    auto_evolve_min_chat_events: int = 4
+    auto_evolve_min_cases: int = 1
+    auto_evolve_generations: int = 1
+    auto_evolve_children: int = 1
+    auto_evolve_cooldown_seconds: int = 300
     slack_auto_respond_channels: bool = True
     slack_min_respond_score: float = 0.65
     slack_shell_enabled: bool = False

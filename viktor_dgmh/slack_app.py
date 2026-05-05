@@ -5,6 +5,7 @@ import re
 from pathlib import Path
 
 from .archive import get_active_agent_id
+from .auto_evolve import schedule_auto_evolve_after_conversation
 from .chat import answer_with_agent, record_feedback
 from .llm import provider_from_config
 from .memory import (
@@ -65,7 +66,17 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
             _handle_shell_command(root, config, text, event, say, logger)
             return
         thread_context = _thread_context_from_slack(client, event, logger)
-        _answer_and_map(root, provider, text, event, say, logger, thread_context=thread_context)
+        _answer_and_map(
+            root,
+            provider,
+            text,
+            event,
+            say,
+            logger,
+            config=config,
+            thread_context=thread_context,
+            use_fake=use_fake,
+        )
 
     @app.event("message")
     def handle_message(event, say, logger, client):
@@ -73,7 +84,7 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
             return
         if event.get("channel_type") != "im":
             if event.get("channel_type") in {"channel", "group"}:
-                _handle_channel_message(root, provider, config, event, say, logger, client)
+                _handle_channel_message(root, provider, config, event, say, logger, client, use_fake=use_fake)
             return
         text = event.get("text", "").strip()
         if not text:
@@ -82,7 +93,17 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
             _handle_shell_command(root, config, text, event, say, logger)
             return
         thread_context = _thread_context_from_slack(client, event, logger)
-        _answer_and_map(root, provider, text, event, say, logger, thread_context=thread_context)
+        _answer_and_map(
+            root,
+            provider,
+            text,
+            event,
+            say,
+            logger,
+            config=config,
+            thread_context=thread_context,
+            use_fake=use_fake,
+        )
 
     @app.event("reaction_added")
     def handle_reaction(event, logger):
@@ -108,12 +129,30 @@ def serve_slack_app(root: Path, config: Config, *, use_fake: bool = False) -> No
             return
         record_feedback(root, mapping["session_id"], feedback, prompt_event, answer_event)
         logger.info("Recorded Slack reaction feedback %s for %s/%s", reaction, channel, ts)
+        schedule_auto_evolve_after_conversation(
+            root,
+            config,
+            provider,
+            use_fake=use_fake,
+            reason=f"slack_reaction:{reaction}",
+            logger=logger,
+        )
 
     print("Starting Viktor Slack app with Socket Mode.")
     SocketModeHandler(app, app_token).start()
 
 
-def _handle_channel_message(root: Path, provider, config: Config, event: dict, say, logger, client=None) -> None:
+def _handle_channel_message(
+    root: Path,
+    provider,
+    config: Config,
+    event: dict,
+    say,
+    logger,
+    client=None,
+    *,
+    use_fake: bool = False,
+) -> None:
     text = event.get("text", "").strip()
     if not text:
         return
@@ -134,7 +173,17 @@ def _handle_channel_message(root: Path, provider, config: Config, event: dict, s
         return
     logger.info("Responding in channel with score %.2f: %s", decision.score, decision.reason)
     thread_context = _thread_context_from_slack(client, event, logger)
-    _answer_and_map(root, provider, text, event, say, logger, thread_context=thread_context)
+    _answer_and_map(
+        root,
+        provider,
+        text,
+        event,
+        say,
+        logger,
+        config=config,
+        thread_context=thread_context,
+        use_fake=use_fake,
+    )
 
 
 def _handle_shell_command(root: Path, config: Config, text: str, event: dict, say, logger) -> None:
@@ -213,7 +262,18 @@ def _compose_slack_prompt(text: str, thread_context: str | None) -> str:
     )
 
 
-def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger, *, thread_context: str | None = None) -> None:
+def _answer_and_map(
+    root: Path,
+    provider,
+    text: str,
+    event: dict,
+    say,
+    logger,
+    *,
+    config: Config,
+    thread_context: str | None = None,
+    use_fake: bool = False,
+) -> None:
     session_id = f"slack_{event.get('channel')}_{event.get('thread_ts') or event.get('ts') or new_session_id()}"
     prompt_event = ChatEvent(
         event_id=new_event_id("prompt"),
@@ -259,6 +319,14 @@ def _answer_and_map(root: Path, provider, text: str, event: dict, say, logger, *
             "prompt_event_id": prompt_event.event_id,
             "answer_event_id": answer_event.event_id,
         },
+    )
+    schedule_auto_evolve_after_conversation(
+        root,
+        config,
+        provider,
+        use_fake=use_fake,
+        reason="slack_conversation",
+        logger=logger,
     )
 
 

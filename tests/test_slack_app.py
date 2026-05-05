@@ -1,9 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
+from tests.workspace import workspace_ctx
+from viktor_dgmh.archive import init_workspace
+from viktor_dgmh.llm import FakeProvider
+from viktor_dgmh.models import Config
 from viktor_dgmh.slack_app import (
     REACTION_TO_FEEDBACK,
+    _answer_and_map,
     _compose_slack_prompt,
     _strip_bot_mentions,
     _thread_context_from_slack,
@@ -20,8 +26,18 @@ class FakeSlackClient:
 
 
 class FakeLogger:
+    def info(self, *args, **kwargs) -> None:
+        pass
+
+    def debug(self, *args, **kwargs) -> None:
+        pass
+
     def exception(self, *args, **kwargs) -> None:
         raise AssertionError("logger.exception should not be called")
+
+
+def fake_say(**kwargs):
+    return {"channel": "C1", "ts": "2"}
 
 
 class SlackAppTests(unittest.TestCase):
@@ -72,6 +88,23 @@ class SlackAppTests(unittest.TestCase):
         self.assertIn("Slack thread context", prompt)
         self.assertIn("Current Slack message", prompt)
         self.assertIn("왜 그래?", prompt)
+
+    def test_answer_schedules_conversation_evolution(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            with patch("viktor_dgmh.slack_app.schedule_auto_evolve_after_conversation") as schedule:
+                _answer_and_map(
+                    root,
+                    FakeProvider(),
+                    "evaluator가 뭐야?",
+                    {"channel": "C1", "ts": "1", "user": "U1"},
+                    fake_say,
+                    FakeLogger(),
+                    config=Config(auto_evolve_min_chat_events=1),
+                    use_fake=True,
+                )
+
+            self.assertTrue(schedule.called)
 
 
 if __name__ == "__main__":

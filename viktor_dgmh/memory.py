@@ -54,6 +54,20 @@ def load_session_events(root: Path, session_id: str) -> list[ChatEvent]:
     return [ChatEvent.model_validate(row) for row in read_jsonl(session_path(root, session_id))]
 
 
+def load_recent_chat_events(root: Path, limit: int = 40) -> list[ChatEvent]:
+    base = chat_sessions_dir(root)
+    if not base.exists():
+        return []
+    events: list[ChatEvent] = []
+    for path in sorted(base.glob("*.jsonl"), key=lambda item: item.stat().st_mtime, reverse=True):
+        for row in read_jsonl(path):
+            events.append(ChatEvent.model_validate(row))
+        if len(events) >= limit * 2:
+            break
+    events.sort(key=lambda event: event.ts)
+    return events[-limit:]
+
+
 def load_chat_event(root: Path, session_id: str, event_id: str) -> ChatEvent | None:
     for event in load_session_events(root, session_id):
         if event.event_id == event_id:

@@ -12,6 +12,12 @@ promotion_delta: 0.05
 promotion_min_safety: 0.9
 pairwise_win_rate: 0.6
 pairwise_min_safety: 0.9
+auto_evolve_on_conversation: true
+auto_evolve_min_chat_events: 4
+auto_evolve_min_cases: 1
+auto_evolve_generations: 1
+auto_evolve_children: 1
+auto_evolve_cooldown_seconds: 300
 slack_auto_respond_channels: true
 slack_min_respond_score: 0.65
 slack_shell_enabled: false

@@ -35,6 +35,10 @@ def imitation_cases_path(root: Path) -> Path:
     return memory_dir(root) / "imitation_cases.jsonl"
 
 
+def auto_evolve_state_path(root: Path) -> Path:
+    return memory_dir(root) / "auto_evolve_state.json"
+
+
 def slack_message_map_path(root: Path) -> Path:
     return memory_dir(root) / "slack_message_map.jsonl"
 
