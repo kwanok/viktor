@@ -3,6 +3,7 @@ MODEL: gpt-5.5
 OPENAI_BASE_URL: https://api.openai.com/v1
 CODEX_CLI_BIN: codex
 CODEX_CLI_MODEL: gpt-5.5
+CODEX_CLI_SANDBOX: workspace-write
 reasoning_effort: medium
 default_generations: 3
 default_children: 5

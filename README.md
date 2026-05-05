@@ -31,12 +31,16 @@ manage the credentials and use it as an experimental provider:
 codex login
 $env:MODEL_PROVIDER="codex_cli"
 $env:CODEX_CLI_MODEL="gpt-5.5"
+$env:CODEX_CLI_SANDBOX="workspace-write"
 python -m viktor_dgmh run --generations 1 --children 1
 ```
 
-The adapter calls `codex exec` in read-only, ephemeral mode and captures the
-final message. It is slower than the direct API provider, but avoids copying API
-keys into this project.
+The adapter calls `codex exec` in ephemeral mode and captures the final message.
+`CODEX_CLI_SANDBOX` accepts `read-only`, `workspace-write`, or
+`danger-full-access`. Keep `read-only` for ordinary Q&A; use `workspace-write`
+when you want the Slack/Codex agent to make local development edits inside this
+project. It is slower than the direct API provider, but avoids copying API keys
+into this project.
 
 ## Imitation chat loop
 

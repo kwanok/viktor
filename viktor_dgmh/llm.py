@@ -64,6 +64,7 @@ class CodexCliProvider:
 
     model: str = "gpt-5.5"
     codex_bin: str = "codex"
+    sandbox: str = "read-only"
     cwd: Path | None = None
     timeout_seconds: int = 600
 
@@ -72,12 +73,14 @@ class CodexCliProvider:
         return cls(
             model=os.environ.get("CODEX_CLI_MODEL", os.environ.get("MODEL", "gpt-5.5")),
             codex_bin=os.environ.get("CODEX_CLI_BIN", "codex"),
+            sandbox=os.environ.get("CODEX_CLI_SANDBOX", "read-only"),
             cwd=cwd,
             timeout_seconds=int(os.environ.get("CODEX_CLI_TIMEOUT", "600")),
         )
 
     def chat(self, messages: list[dict[str, str]], *, model: str | None = None, response_format: str | None = None) -> str:
         prompt = _messages_to_prompt(messages, response_format=response_format)
+        sandbox = _normalize_codex_sandbox(self.sandbox)
         tmp_path = _provider_tmp_dir(self.cwd)
         try:
             output_path = tmp_path / "last_message.txt"
@@ -90,7 +93,7 @@ class CodexCliProvider:
                 "--ephemeral",
                 "--skip-git-repo-check",
                 "--sandbox",
-                "read-only",
+                sandbox,
                 "--output-last-message",
                 str(output_path),
                 "--color",
@@ -180,6 +183,7 @@ def provider_from_config(config, *, root: Path | None = None, use_fake: bool = F
                 getattr(config, "codex_cli_model", os.environ.get("MODEL", "gpt-5.5")),
             ),
             codex_bin=os.environ.get("CODEX_CLI_BIN", getattr(config, "codex_cli_bin", "codex")),
+            sandbox=os.environ.get("CODEX_CLI_SANDBOX", getattr(config, "codex_cli_sandbox", "read-only")),
             cwd=root,
         )
     return OpenAICompatibleProvider(
@@ -203,6 +207,14 @@ def _messages_to_prompt(messages: list[dict[str, str]], *, response_format: str 
         content = message.get("content", "")
         parts.append(f"<{role}>\n{content}\n</{role}>")
     return "\n\n".join(parts).strip() + "\n"
+
+
+def _normalize_codex_sandbox(value: str) -> str:
+    allowed = {"read-only", "workspace-write", "danger-full-access"}
+    normalized = value.strip().lower()
+    if normalized not in allowed:
+        raise ValueError(f"Unsupported Codex CLI sandbox {value!r}. Expected one of: {', '.join(sorted(allowed))}.")
+    return normalized
 
 
 def _provider_tmp_dir(cwd: Path | None) -> Path:

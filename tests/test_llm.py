@@ -12,13 +12,24 @@ from viktor_dgmh.models import Config
 
 class CodexCliProviderTests(unittest.TestCase):
     def test_provider_from_config_selects_codex_cli(self) -> None:
-        config = Config(MODEL_PROVIDER="codex_cli", MODEL="gpt-5.5", CODEX_CLI_MODEL="gpt-5.5")
+        config = Config(
+            MODEL_PROVIDER="codex_cli",
+            MODEL="gpt-5.5",
+            CODEX_CLI_MODEL="gpt-5.5",
+            CODEX_CLI_SANDBOX="workspace-write",
+        )
         provider = provider_from_config(config, root=Path.cwd())
         self.assertIsInstance(provider, CodexCliProvider)
         self.assertEqual(provider.model, "gpt-5.5")
+        self.assertEqual(provider.sandbox, "workspace-write")
 
-    def test_codex_cli_command_is_read_only_and_ephemeral(self) -> None:
-        provider = CodexCliProvider(model="gpt-test", codex_bin="codex-test", cwd=Path.cwd())
+    def test_codex_cli_command_uses_configured_sandbox_and_ephemeral(self) -> None:
+        provider = CodexCliProvider(
+            model="gpt-test",
+            codex_bin="codex-test",
+            sandbox="workspace-write",
+            cwd=Path.cwd(),
+        )
         captured = {}
 
         def fake_run(command, input, text, capture_output, cwd, timeout, check):
@@ -35,8 +46,13 @@ class CodexCliProviderTests(unittest.TestCase):
         self.assertIn("exec", command)
         self.assertIn("--ephemeral", command)
         self.assertIn("--skip-git-repo-check", command)
-        self.assertEqual(command[command.index("--sandbox") + 1], "read-only")
+        self.assertEqual(command[command.index("--sandbox") + 1], "workspace-write")
         self.assertEqual(command[command.index("--model") + 1], "gpt-test")
+
+    def test_codex_cli_rejects_unknown_sandbox(self) -> None:
+        provider = CodexCliProvider(model="gpt-test", codex_bin="codex-test", sandbox="weird", cwd=Path.cwd())
+        with self.assertRaisesRegex(ValueError, "Unsupported Codex CLI sandbox"):
+            provider.chat([{"role": "user", "content": "hello"}])
 
     def test_openai_provider_requires_key_for_official_api(self) -> None:
         provider = OpenAICompatibleProvider(api_key=None)
