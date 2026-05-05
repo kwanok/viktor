@@ -20,6 +20,10 @@ class CapturingMutationProvider:
     def chat(self, messages, *, model=None, response_format=None) -> str:
         self.messages = messages
         files = json.loads(messages[-1]["content"].split("Current files:\n", 1)[1])
+        files["reflection_policy.yaml"] = files["reflection_policy.yaml"].replace(
+            "- tone\n",
+            "- tone\n- identity_boundary\n",
+        )
         files["self_model.yaml"] = files["self_model.yaml"].replace(
             "public_identity_rules:\n",
             "public_identity_rules:\n- Use casual Korean banmal with the user by default.\n",
@@ -81,7 +85,10 @@ class ImitationTests(unittest.TestCase):
             self.assertIn("banmal", mutation_prompt)
             self.assertIn('"target": "self_model"', mutation_prompt)
             self.assertIn("self_model.yaml", mutation_prompt)
+            self.assertIn("Active mutator strategy", mutation_prompt)
+            self.assertIn("reflection_policy.yaml", mutation_prompt)
             self.assertIn("banmal", (child_path / "self_model.yaml").read_text(encoding="utf-8"))
+            self.assertIn("identity_boundary", (child_path / "reflection_policy.yaml").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

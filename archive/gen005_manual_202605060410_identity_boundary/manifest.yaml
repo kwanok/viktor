@@ -5,6 +5,9 @@ description: Manual identity boundary improvement for outward Viktor persona.
 mutable_files:
 - task_prompt.md
 - self_model.yaml
+- reflection_policy.yaml
+- mutator_strategy.yaml
+- judge_policy.yaml
 - meta_prompt.md
 - tool_policy.yaml
 - memory_policy.yaml

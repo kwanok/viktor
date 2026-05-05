@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from .models import Config, SelfModel
+from .models import Config, JudgePolicy, MutatorStrategy, ReflectionPolicy, SelfModel
 
 
 DEFAULT_CONFIG = Config().model_dump(by_alias=True)
 DEFAULT_SELF_MODEL = SelfModel().model_dump()
+DEFAULT_REFLECTION_POLICY = ReflectionPolicy().model_dump()
+DEFAULT_MUTATOR_STRATEGY = MutatorStrategy().model_dump()
+DEFAULT_JUDGE_POLICY = JudgePolicy().model_dump()
 
 SEED_TASK_PROMPT = """Behavior model for Viktor.
 
@@ -26,6 +29,9 @@ SEED_META_PROMPT = """You are the meta-agent inside a DGM-H Lite hyperagent.
 Your job is to propose a better child hyperagent by editing only:
 - task_prompt.md
 - self_model.yaml
+- reflection_policy.yaml
+- mutator_strategy.yaml
+- judge_policy.yaml
 - meta_prompt.md
 - tool_policy.yaml
 - memory_policy.yaml
@@ -38,8 +44,12 @@ without weakening safety.
 Treat the evolution brief as the main signal. Convert stable user preferences,
 conversation corrections, and reflection/imitation cases into concrete edits.
 If the user corrects identity, relationship, or tone, edit self_model.yaml rather
-than task_prompt.md. Use task_prompt.md for judgment/work behavior only. Return
-a JSON object with file contents and a concise mutation_summary.
+than task_prompt.md. If the system misses what to learn from conversation, edit
+reflection_policy.yaml. If child generation picks the wrong artifact or mutates
+too timidly, edit mutator_strategy.yaml. If promotion misses identity/safety
+regressions or samples the wrong prompts, edit judge_policy.yaml. Use
+task_prompt.md for judgment/work behavior only. Return a JSON object with file
+contents and a concise mutation_summary.
 """
 
 SEED_TOOL_POLICY = {

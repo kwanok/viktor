@@ -3,14 +3,28 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import yaml
+
 from .archive import copy_parent_to_child, load_agent, next_agent_id, write_child_metadata
+from .defaults import DEFAULT_SELF_MODEL
 from .llm import ChatProvider
 from .memory import load_imitation_cases, load_preferences, load_recent_chat_events
 from .models import AggregateScore
 from .prompt_compiler import load_self_model
 from .serialization import write_json
+from .strategy import STRATEGY_FILE_DEFAULTS, load_judge_policy, load_mutator_strategy, load_reflection_policy, strategy_file_text
 
-MUTABLE_FILES = {"task_prompt.md", "self_model.yaml", "meta_prompt.md", "tool_policy.yaml", "memory_policy.yaml", "helpers.py"}
+MUTABLE_FILES = {
+    "task_prompt.md",
+    "self_model.yaml",
+    "reflection_policy.yaml",
+    "mutator_strategy.yaml",
+    "judge_policy.yaml",
+    "meta_prompt.md",
+    "tool_policy.yaml",
+    "memory_policy.yaml",
+    "helpers.py",
+}
 
 
 def create_child(
@@ -36,18 +50,29 @@ def create_child(
 
 
 def _request_mutation(root: Path, parent_path: Path, score: AggregateScore, provider: ChatProvider, use_fake: bool) -> dict:
-    files = {name: (parent_path / name).read_text(encoding="utf-8") for name in MUTABLE_FILES}
+    strategy = load_mutator_strategy(parent_path)
+    editable_files = [name for name in strategy.editable_files if name in MUTABLE_FILES]
+    if not editable_files:
+        editable_files = sorted(MUTABLE_FILES)
+    files = {
+        name: strategy_file_text(parent_path, name) if name in STRATEGY_FILE_DEFAULTS else _file_text(parent_path, name)
+        for name in editable_files
+    }
     evolution_brief = _build_evolution_brief(root)
+    allowed_files = ", ".join(editable_files)
     prompt = {
         "role": "user",
         "content": (
             "Create a child hyperagent mutation. Return JSON only with keys "
-            "`mutation_summary` and `files`. `files` may contain only task_prompt.md, "
-            "self_model.yaml, meta_prompt.md, tool_policy.yaml, memory_policy.yaml, helpers.py.\n\n"
+            f"`mutation_summary` and `files`. `files` may contain only: {allowed_files}.\n\n"
             "Use the evolution brief as the primary source for what should change. "
             "Stable user preferences, recurring corrections, and reflection-derived imitation cases "
             "should be converted into concrete edits. Identity, relationship, tone, and internal/external boundary "
-            "changes belong in self_model.yaml. Judgment and work behavior changes belong in task_prompt.md.\n\n"
+            "changes belong in self_model.yaml. Judgment and work behavior changes belong in task_prompt.md. "
+            "If reflection misses the right lessons, edit reflection_policy.yaml. If candidate generation keeps choosing "
+            "the wrong files or scale, edit mutator_strategy.yaml. If promotion misses regressions or samples the wrong "
+            "questions, edit judge_policy.yaml.\n\n"
+            f"Active mutator strategy:\n{strategy.model_dump_json(indent=2)}\n\n"
             f"Evolution brief:\n{json.dumps(evolution_brief, ensure_ascii=False, indent=2)}\n\n"
             f"Current aggregate score:\n{score.model_dump_json(indent=2)}\n\n"
             f"Current files:\n{json.dumps(files, ensure_ascii=False, indent=2)}"
@@ -61,6 +86,17 @@ def _request_mutation(root: Path, parent_path: Path, score: AggregateScore, prov
     if not isinstance(parsed, dict) or not isinstance(parsed.get("files"), dict):
         raise ValueError("Mutation response must be an object with a files object.")
     return parsed
+
+
+def _file_text(path: Path, filename: str) -> str:
+    file_path = path / filename
+    if file_path.exists():
+        return file_path.read_text(encoding="utf-8")
+    if filename == "self_model.yaml":
+        return yaml.safe_dump(DEFAULT_SELF_MODEL, sort_keys=False, allow_unicode=True)
+    if filename in MUTABLE_FILES:
+        return ""
+    raise FileNotFoundError(filename)
 
 
 def _build_evolution_brief(root: Path) -> dict:
@@ -79,6 +115,9 @@ def _build_evolution_brief(root: Path) -> dict:
     ]
     return {
         "active_self_model": load_self_model(load_agent(root, "active").path).model_dump(),
+        "active_reflection_policy": load_reflection_policy(load_agent(root, "active").path).model_dump(),
+        "active_mutator_strategy": load_mutator_strategy(load_agent(root, "active").path).model_dump(),
+        "active_judge_policy": load_judge_policy(load_agent(root, "active").path).model_dump(),
         "recent_preferences": [
             {
                 "kind": pref.kind,

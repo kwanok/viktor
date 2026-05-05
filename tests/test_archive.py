@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from viktor_dgmh.archive import get_active_agent_id, init_workspace, load_agent, set_active_agent
-from viktor_dgmh.defaults import DEFAULT_SELF_MODEL, SEED_TASK_PROMPT
+from viktor_dgmh.defaults import DEFAULT_JUDGE_POLICY, DEFAULT_MUTATOR_STRATEGY, DEFAULT_REFLECTION_POLICY, DEFAULT_SELF_MODEL, SEED_TASK_PROMPT
 from viktor_dgmh.selection import select_parent
 from tests.workspace import workspace_ctx
 
@@ -18,6 +18,9 @@ class ArchiveTests(unittest.TestCase):
             self.assertEqual(record.manifest.generation, 0)
             self.assertGreaterEqual(record.scores.safety, 0.9)
             self.assertTrue((record.path / "self_model.yaml").exists())
+            self.assertTrue((record.path / "reflection_policy.yaml").exists())
+            self.assertTrue((record.path / "mutator_strategy.yaml").exists())
+            self.assertTrue((record.path / "judge_policy.yaml").exists())
 
     def test_manual_active_update_validates_agent_exists(self) -> None:
         with workspace_ctx() as root:
@@ -37,6 +40,11 @@ class ArchiveTests(unittest.TestCase):
         self.assertEqual(DEFAULT_SELF_MODEL["default_tone"], "banmal")
         self.assertIn("assistant", DEFAULT_SELF_MODEL["forbidden_self_descriptions"])
         self.assertIn("DGM-H", DEFAULT_SELF_MODEL["internal_only"])
+
+    def test_seed_meta_strategy_defaults_are_present(self) -> None:
+        self.assertIn("identity", DEFAULT_REFLECTION_POLICY["self_model_contexts"])
+        self.assertIn("reflection_policy.yaml", DEFAULT_MUTATOR_STRATEGY["editable_files"])
+        self.assertIn("quality of future self-improvement strategy", DEFAULT_JUDGE_POLICY["evaluation_axes"])
 
 
 if __name__ == "__main__":

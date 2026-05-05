@@ -1,0 +1,24 @@
+version: 1
+max_observations: 5
+min_strength: 0.45
+self_model_contexts:
+- identity
+- korean_style
+- relationship
+- tone
+focus_areas:
+- follow-up corrections
+- repeated user objections
+- identity or relationship corrections
+- tone drift
+- context misses
+- overexplaining
+- weak evidence
+- unsafe or permission-heavy instincts
+- failure to act when action was expected
+extraction_rules:
+- Do not require explicit feedback commands.
+- Prefer concrete behavioral preferences over vague personality summaries.
+- Use target=self_model for identity, relationship, tone, banmal/honorific, and internal/external boundary corrections.
+- Use target=task_prompt for judgment, evidence, implementation taste, and explanation density.
+- Use target=policy for memory, tool, approval, or routing behavior.

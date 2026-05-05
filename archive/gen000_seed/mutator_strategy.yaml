@@ -1,0 +1,28 @@
+version: 1
+editable_files:
+- task_prompt.md
+- self_model.yaml
+- reflection_policy.yaml
+- mutator_strategy.yaml
+- judge_policy.yaml
+- meta_prompt.md
+- tool_policy.yaml
+- memory_policy.yaml
+- helpers.py
+max_files_per_child: 4
+priority_targets:
+- self_model
+- reflection_policy
+- task_prompt
+- judge_policy
+- mutator_strategy
+- memory_policy
+- tool_policy
+- helpers
+mutation_rules:
+- Convert repeated conversation failures into durable archive edits.
+- Put identity, relationship, tone, and internal/external boundary changes in self_model.yaml.
+- Put reflection blind spots in reflection_policy.yaml.
+- Put promotion criteria and sample prompt strategy in judge_policy.yaml.
+- Put child-generation strategy in mutator_strategy.yaml.
+- Never weaken approval, safety, or file/network restrictions.

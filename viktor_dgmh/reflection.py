@@ -4,9 +4,11 @@ import json
 import uuid
 from pathlib import Path
 
+from .archive import load_agent
 from .llm import ChatProvider
 from .memory import append_imitation_case, append_preference, load_recent_chat_events
 from .models import ChatEvent, ImitationCase, PreferenceSignal
+from .strategy import load_reflection_policy
 
 
 def reflect_on_recent_conversation(
@@ -19,7 +21,8 @@ def reflect_on_recent_conversation(
     events = load_recent_chat_events(root, limit=max_events)
     if len(events) < 4:
         return [], []
-    observations = _fake_observations(events) if use_fake else _request_reflection(events, provider)
+    policy = load_reflection_policy(load_agent(root, "active").path)
+    observations = _fake_observations(events) if use_fake else _request_reflection(events, provider, policy.model_dump())
     signals: list[PreferenceSignal] = []
     cases: list[ImitationCase] = []
     seen_sources = _existing_reflection_sources(root)
@@ -32,7 +35,11 @@ def reflect_on_recent_conversation(
         prompt, answer = pairs.get(source_event_id, (None, None))
         if prompt is None:
             continue
-        target = _normalize_target(str(item.get("target") or "task_prompt"), str(item.get("context") or "general"))
+        target = _normalize_target(
+            str(item.get("target") or "task_prompt"),
+            str(item.get("context") or "general"),
+            policy.self_model_contexts,
+        )
         signal = PreferenceSignal(
             signal_id=f"sig_{uuid.uuid4().hex}",
             session_id=prompt.session_id,
@@ -63,17 +70,15 @@ def reflect_on_recent_conversation(
     return signals, cases
 
 
-def _request_reflection(events: list[ChatEvent], provider: ChatProvider) -> list[dict]:
+def _request_reflection(events: list[ChatEvent], provider: ChatProvider, policy: dict) -> list[dict]:
     transcript = "\n".join(f"{event.event_id} {event.role}: {event.text}" for event in events)
     prompt = (
         "Review this user/agent transcript for self-improvement opportunities. "
-        "Do not require explicit feedback commands. Infer problems from follow-up corrections, repeated questions, "
-        "context misses, overexplaining, unsafe instincts, weak evidence, failure to act, identity corrections, "
-        "or leaks of internal implementation details such as assistant, task agent, DGM-H, hyperagent, bot, or tool. "
+        "Follow the active reflection policy, then infer problems from the transcript. "
         "Return JSON only: {\"observations\":[...]} where each observation has source_event_id, "
         "target (self_model|task_prompt|policy), kind, polarity (positive|negative|neutral), strength (0..1), "
-        "context, preference, and optional preferred_text. Use target=self_model for identity, relationship, tone, "
-        "banmal/honorific, and internal/external boundary corrections.\n\n"
+        "context, preference, and optional preferred_text.\n\n"
+        f"Active reflection policy:\n{json.dumps(policy, ensure_ascii=False, indent=2)}\n\n"
         f"{transcript}"
     )
     raw = provider.chat([{"role": "user", "content": prompt}], response_format="json")
@@ -148,8 +153,8 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
     return observations
 
 
-def _normalize_target(target: str, context: str) -> str:
-    if context in {"identity", "korean_style", "relationship", "tone"}:
+def _normalize_target(target: str, context: str, self_model_contexts: list[str] | None = None) -> str:
+    if context in set(self_model_contexts or ["identity", "korean_style", "relationship", "tone"]):
         return "self_model"
     if target in {"self_model", "task_prompt", "policy"}:
         return target

@@ -80,6 +80,19 @@ Viktor's outward identity, relationship with 노관옥, default banmal tone,
 forbidden self-descriptions, and internal-only implementation terms. The
 `task_prompt.md` should focus on judgment and work behavior.
 
+The next layer is meta-strategy evolution. Three additional archive artifacts
+let Viktor improve the improvement loop without opening unrestricted code edits:
+
+```text
+reflection_policy.yaml  # what failures to notice in conversation
+mutator_strategy.yaml   # which artifacts to edit and at what scale
+judge_policy.yaml       # what the LLM judge should sample and weigh
+```
+
+These files are mutable, validated YAML. The fixed runner still enforces safety,
+validation, and promotion gates, so a child cannot simply grant itself shell
+access or ask the judge to ignore identity regressions.
+
 Before any answer or judge sample, the prompt compiler combines:
 
 ```text
@@ -88,9 +101,11 @@ self_model.yaml
 + recent learned preferences as an ephemeral bridge
 ```
 
-Reflection can target `self_model`, `task_prompt`, or `policy`. Identity, tone,
-relationship, and internal/external-boundary corrections are forced to
-`self_model`; they should not be patched into the work prompt.
+Reflection can target `self_model`, `task_prompt`, or `policy`. The active
+`reflection_policy.yaml` controls which contexts are treated as self-model
+corrections. By default, identity, tone, relationship, and
+internal/external-boundary corrections are forced to `self_model`; they should
+not be patched into the work prompt.
 
 ## Conversation reflection self-evolution
 

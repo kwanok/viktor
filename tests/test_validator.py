@@ -55,6 +55,19 @@ class ValidatorTests(unittest.TestCase):
             self.assertFalse(result.passed)
             self.assertTrue(any(issue.file == "self_model.yaml" for issue in result.issues))
 
+    def test_rejects_malformed_meta_strategy_policy(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            (root / "archive" / "gen000_seed" / "judge_policy.yaml").write_text(
+                "version: 1\nidentity_eval_prompts: 너는 누구야?\n",
+                encoding="utf-8",
+            )
+
+            result = validate_agent_dir(root / "archive" / "gen000_seed")
+
+            self.assertFalse(result.passed)
+            self.assertTrue(any(issue.file == "judge_policy.yaml" for issue in result.issues))
+
 
 if __name__ == "__main__":
     unittest.main()
