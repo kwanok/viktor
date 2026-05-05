@@ -1,35 +1,67 @@
-# Viktor Session Purpose
+# Viktor HyperAgent Working Notes
 
-The current purpose of this project is to build an environment where the Viktor Slack bot can self-evolve in practice, not merely change wording.
+This repository exists to build Viktor as a self-evolving personal HyperAgent.
 
-Core objective:
-- Viktor should observe conversation failures, infer what capability or behavior is missing, improve the relevant artifact or code, validate the change, and make the improved version available to the running Slack experience.
+The goal is not to manually patch prompts whenever the user gives feedback. The goal is to create a runtime and evolution loop where Viktor can observe conversation failures, infer the missing behavior or capability, propose mutations, validate them, judge whether they improve Viktor, and make promoted changes available to the live Slack experience.
 
-Current architecture direction:
-- `WorkerAgent` answers as Viktor.
-- `MetaAgent` creates child archive mutations.
-- `JudgeAgent` evaluates whether a child should be promoted.
-- Archive artifacts such as `self_model.yaml`, `task_prompt.md`, `reflection_policy.yaml`, `mutator_strategy.yaml`, and `judge_policy.yaml` are mutable evolution targets.
-- Runner, validator, approval gates, and hard safety checks stay fixed unless explicitly redesigned.
+## Core Objective
 
-Important current gap:
-- The Slack bot currently does not add `:eyes:` reactions to user messages before answering.
-- That is a missing Slack capability, not a prompt/style issue.
-- Implementing it requires Slack `reactions:write`, manifest updates, code changes in `slack_app.py`, and a running process restart.
+- Viktor should become closer to the user's judgment style over time.
+- Judgment style matters more than surface voice: tradeoffs, risk instincts, evidence standards, explanation density, implementation taste, and when to act or stay quiet.
+- Writing style still matters, but it should follow from the self-model and observed preferences rather than being hand-patched case by case.
+- Capability failures should become structured capability gaps, not fake confidence or prompt-only fixes.
 
-Runtime lifecycle principle:
-- Self-evolution is incomplete unless promoted archive changes and code/capability changes are reflected in the live Slack process.
-- Archive/prompt/policy changes can be loaded at message time.
-- Code, Slack scope, manifest, and dependency changes require a supervisor/restart path.
-- Viktor should not abruptly kill its own process; it should request restart through a supervisor-controlled mechanism.
+## Agent Roles
 
-Near-term priority:
-- Add a daemon/supervisor layer for `slack serve`.
-- Add restart/status commands for trusted users.
-- Add a restart request file under runtime state.
-- Then implement `:eyes:` reaction support as an end-to-end test of capability detection, code change, validation, and restart.
+- `WorkerAgent` is the outward-facing Viktor runtime that answers and acts within the current permissions.
+- `MetaAgent` creates candidate mutations for owned artifacts such as self-model, prompts, policies, and safe helper code.
+- `JudgeAgent` evaluates whether a candidate is closer to the intended Viktor behavior and safe enough to promote.
+- The runner, validator, approval gates, archive mechanics, and hard safety checks are infrastructure. They should stay stable unless explicitly redesigned.
 
-Implementation boundary:
-- Do not implement `:eyes:` reaction support directly in the bootstrap step.
-- First build capability-gap recording and supervised restart infrastructure.
-- `:eyes:` should remain a capability gap that Viktor can later solve through its own evolution path.
+## Mutable Evolution Targets
+
+These artifacts may evolve through the archive loop:
+
+- `self_model.yaml`
+- `task_prompt.md`
+- `reflection_policy.yaml`
+- `mutator_strategy.yaml`
+- `judge_policy.yaml`
+- `meta_prompt.md`
+- `tool_policy.yaml`
+- `memory_policy.yaml`
+- `helpers.py`, within validator-approved pure helper rules
+
+Identity, relationship, tone, and internal/external boundary corrections belong in `self_model.yaml`, not scattered across task prompts.
+
+## Capability Gaps
+
+When Viktor cannot do something the user reasonably expected, record it as a capability gap with evidence, requested capability, failure mode, required changes, restart needs, and status.
+
+Examples of capability gap categories:
+
+- missing Slack action capability
+- missing tool permission or scope
+- missing runtime lifecycle support
+- missing code path
+- missing memory or retrieval behavior
+- missing evaluation coverage
+
+A capability gap is not automatically a license to implement the capability. The evolution path should still validate scope, safety, permissions, tests, and whether a restart is required.
+
+## Runtime Lifecycle
+
+Self-evolution is incomplete unless promoted changes can reach the live runtime.
+
+- Archive, prompt, policy, and self-model changes should be loadable at message time where possible.
+- Code, dependency, Slack scope, manifest, and process-level changes require a supervised restart path.
+- Viktor should request restart through the supervisor rather than killing its own process.
+- Runtime state such as `memory/`, `runs/`, `runtime/`, generated child archives, and local active pointers are not project doctrine.
+
+## Engineering Boundary
+
+- Do not encode one-off conversation incidents as permanent top-level project purpose.
+- Keep examples out of this file unless they clarify a general rule.
+- Prefer mechanisms that let Viktor learn from future cases over hardcoded fixes for a single case.
+- Do not grant new external permissions, mutate accounts, or perform destructive actions without explicit approval.
+- Keep tests around the loop: observation, reflection, mutation, validation, judging, promotion, and runtime reload.
