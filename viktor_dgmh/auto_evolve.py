@@ -23,6 +23,14 @@ def auto_evolve_status(root: Path, config: Config) -> tuple[bool, str]:
 
     state = read_json(auto_evolve_state_path(root), {}) or {}
     if state.get("running"):
+        started_at = state.get("started_at")
+        if started_at:
+            try:
+                elapsed = (datetime.now(timezone.utc) - datetime.fromisoformat(started_at)).total_seconds()
+            except ValueError:
+                elapsed = 0
+            if elapsed >= config.auto_evolve_stale_running_seconds:
+                return True, "recovered stale auto evolution state"
         return False, "auto evolution is already running"
     last_run_at = state.get("last_run_at")
     if last_run_at:

@@ -47,6 +47,7 @@ class Config(BaseModel):
     auto_evolve_generations: int = 1
     auto_evolve_children: int = 5
     auto_evolve_cooldown_seconds: int = 300
+    auto_evolve_stale_running_seconds: int = 1800
     slack_auto_respond_channels: bool = True
     slack_min_respond_score: float = 0.65
     slack_shell_enabled: bool = False

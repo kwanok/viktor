@@ -9,6 +9,7 @@ import yaml
 from tests.workspace import workspace_ctx
 from viktor_dgmh.archive import init_workspace
 from viktor_dgmh.llm import FakeProvider
+from viktor_dgmh.memory import load_capability_gaps
 from viktor_dgmh.models import Config
 from viktor_dgmh.slack_app import (
     REACTION_TO_FEEDBACK,
@@ -39,6 +40,15 @@ class FakeLogger:
 
     def exception(self, *args, **kwargs) -> None:
         raise AssertionError("logger.exception should not be called")
+
+
+class CapturingProvider:
+    def __init__(self) -> None:
+        self.messages = []
+
+    def chat(self, messages, *, model=None, response_format=None):
+        self.messages = messages
+        return "gap recorded"
 
 
 def fake_say(**kwargs):
@@ -139,6 +149,67 @@ class SlackAppTests(unittest.TestCase):
                 )
 
             self.assertTrue(schedule.called)
+
+    def test_answer_records_slack_reaction_capability_gap_from_thread_context(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            provider = CapturingProvider()
+            thread_context = (
+                "user:U1: Please add :eyes: as a reaction to my Slack message.\n"
+                "assistant: I cannot add Slack reactions yet."
+            )
+
+            with patch("viktor_dgmh.slack_app.schedule_auto_evolve_after_conversation"):
+                _answer_and_map(
+                    root,
+                    provider,
+                    "그냥 해줘",
+                    {"channel": "C1", "ts": "3", "thread_ts": "1", "user": "U1"},
+                    fake_say,
+                    FakeLogger(),
+                    config=Config(auto_evolve_min_chat_events=1),
+                    thread_context=thread_context,
+                    use_fake=True,
+                )
+
+            gaps = load_capability_gaps(root)
+            self.assertEqual(len(gaps), 1)
+            self.assertEqual(gaps[0].requested_capability, "slack_reaction_add")
+            self.assertEqual(gaps[0].required_changes, ["slack_scope", "code", "restart"])
+            self.assertTrue(gaps[0].requires_restart)
+            joined_prompt = "\n".join(message["content"] for message in provider.messages)
+            self.assertIn("capability gap was recorded", joined_prompt)
+
+    def test_slack_reaction_capability_gap_is_not_duplicated(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            thread_context = "user:U1: Please add :eyes: as a reaction to my Slack message."
+
+            with patch("viktor_dgmh.slack_app.schedule_auto_evolve_after_conversation"):
+                _answer_and_map(
+                    root,
+                    CapturingProvider(),
+                    "make it work",
+                    {"channel": "C1", "ts": "3", "thread_ts": "1", "user": "U1"},
+                    fake_say,
+                    FakeLogger(),
+                    config=Config(auto_evolve_min_chat_events=1),
+                    thread_context=thread_context,
+                    use_fake=True,
+                )
+                _answer_and_map(
+                    root,
+                    CapturingProvider(),
+                    "make it work",
+                    {"channel": "C1", "ts": "4", "thread_ts": "1", "user": "U1"},
+                    fake_say,
+                    FakeLogger(),
+                    config=Config(auto_evolve_min_chat_events=1),
+                    thread_context=thread_context,
+                    use_fake=True,
+                )
+
+            self.assertEqual(len(load_capability_gaps(root)), 1)
 
     def test_manifest_does_not_grant_reaction_write_scope_yet(self) -> None:
         manifest = yaml.safe_load((Path.cwd() / "slack_app_manifest.yaml").read_text(encoding="utf-8"))

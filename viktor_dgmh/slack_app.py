@@ -9,14 +9,16 @@ from .auto_evolve import schedule_auto_evolve_after_conversation
 from .chat import answer_with_agent, record_feedback
 from .llm import provider_from_config
 from .memory import (
+    append_capability_gap,
     append_chat_event,
     append_slack_message_map,
     find_slack_message_map,
+    load_capability_gaps,
     load_chat_event,
     new_event_id,
     new_session_id,
 )
-from .models import ChatEvent, Config, RouterObservation
+from .models import CapabilityGap, ChatEvent, Config, RouterObservation
 from .router import add_router_label_for_slack_message, append_router_observation, load_router_policy, score_message
 from .shell_runner import (
     format_shell_result,
@@ -265,6 +267,92 @@ def _compose_slack_prompt(text: str, thread_context: str | None) -> str:
     )
 
 
+def _record_slack_capability_gap_if_needed(
+    root: Path,
+    text: str,
+    thread_context: str | None,
+    event: dict,
+    logger,
+) -> CapabilityGap | None:
+    if not _looks_like_slack_reaction_gap(text, thread_context):
+        return None
+
+    for gap in load_capability_gaps(root):
+        if (
+            gap.status in {"open", "planned"}
+            and gap.requested_capability == "slack_reaction_add"
+            and gap.failure_mode == "missing_slack_action_capability"
+        ):
+            return gap
+
+    gap = CapabilityGap(
+        gap_id=new_event_id("gap"),
+        source="slack_message",
+        summary=(
+            "User asked Viktor to add :eyes: as a Slack reaction to the user's message, "
+            "but the runtime cannot perform that Slack action yet."
+        ),
+        evidence=_slack_capability_gap_evidence(text, thread_context, event),
+        requested_capability="slack_reaction_add",
+        failure_mode="missing_slack_action_capability",
+        required_changes=["slack_scope", "code", "restart"],
+        requires_restart=True,
+    )
+    append_capability_gap(root, gap)
+    if logger:
+        logger.info("Recorded Slack capability gap %s for %s", gap.gap_id, gap.requested_capability)
+    return gap
+
+
+def _looks_like_slack_reaction_gap(text: str, thread_context: str | None) -> bool:
+    combined = "\n".join(part for part in [thread_context or "", text] if part)
+    lowered = combined.lower()
+    has_eyes = ":eyes:" in lowered or "👀" in combined or "eyes" in lowered
+    has_reaction_word = (
+        "reaction" in lowered
+        or "react" in lowered
+        or "emoji" in lowered
+        or any(word in combined for word in ["리액션", "이모지", "반응"])
+    )
+    asks_for_action = any(
+        word in combined
+        for word in ["달아", "붙", "해봐", "해줘", "되게", "추가", "하도록", "실제로", "그냥", "add", "make it work"]
+    )
+    return has_eyes and has_reaction_word and asks_for_action
+
+
+def _slack_capability_gap_evidence(text: str, thread_context: str | None, event: dict) -> list[str]:
+    evidence = [
+        f"current Slack message: {_truncate_evidence(text)}",
+        f"channel={event.get('channel')} ts={event.get('ts')} thread_ts={event.get('thread_ts')}",
+    ]
+    if thread_context:
+        relevant_lines = [
+            line
+            for line in thread_context.splitlines()
+            if _looks_like_slack_reaction_gap("", line) or ":eyes:" in line.lower() or "👀" in line
+        ]
+        for line in relevant_lines[-4:]:
+            evidence.append(f"thread context: {_truncate_evidence(line)}")
+    return evidence
+
+
+def _capability_gap_prompt_note(gap: CapabilityGap) -> str:
+    return (
+        "System note before answering: a capability gap was recorded for "
+        f"{gap.requested_capability}. Do not claim the Slack action is implemented or already done. "
+        "Answer briefly that the gap is now recorded as self-evolution input, and keep the actual "
+        "Slack reaction capability as future work."
+    )
+
+
+def _truncate_evidence(text: str, limit: int = 500) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= limit:
+        return cleaned
+    return cleaned[: limit - 3] + "..."
+
+
 def _answer_and_map(
     root: Path,
     provider,
@@ -296,7 +384,11 @@ def _answer_and_map(
     append_chat_event(root, prompt_event)
 
     try:
-        answer = answer_with_agent(root, provider, _compose_slack_prompt(text, thread_context))
+        prompt_text = _compose_slack_prompt(text, thread_context)
+        gap = _record_slack_capability_gap_if_needed(root, text, thread_context, event, logger)
+        if gap:
+            prompt_text = f"{_capability_gap_prompt_note(gap)}\n\n{prompt_text}"
+        answer = answer_with_agent(root, provider, prompt_text)
     except Exception as exc:
         logger.exception("Failed to answer Slack message")
         say(text=f"Answer failed: {exc}", thread_ts=event.get("thread_ts") or event.get("ts"))

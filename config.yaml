@@ -19,6 +19,7 @@ auto_evolve_min_cases: 0
 auto_evolve_generations: 1
 auto_evolve_children: 5
 auto_evolve_cooldown_seconds: 300
+auto_evolve_stale_running_seconds: 1800
 slack_auto_respond_channels: true
 slack_min_respond_score: 0.65
 slack_shell_enabled: false

@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import unittest
 
 from tests.workspace import workspace_ctx
 from viktor_dgmh.archive import get_active_agent_id, init_workspace
-from viktor_dgmh.auto_evolve import run_auto_evolve_once
+from viktor_dgmh.auto_evolve import auto_evolve_status, run_auto_evolve_once
 from viktor_dgmh.chat import run_chat_once
 from viktor_dgmh.llm import FakeProvider
 from viktor_dgmh.memory import load_imitation_cases
 from viktor_dgmh.models import Config
+from viktor_dgmh.paths import auto_evolve_state_path
 from viktor_dgmh.reflection import reflect_on_recent_conversation
+from viktor_dgmh.serialization import write_json
 
 
 class ReflectionAutoEvolveTests(unittest.TestCase):
@@ -65,6 +68,30 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
 
             self.assertIsNotNone(state)
             self.assertNotEqual(get_active_agent_id(root), "gen000_seed")
+
+    def test_auto_evolve_blocks_fresh_running_state(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            write_json(auto_evolve_state_path(root), {"running": True, "started_at": datetime.now(timezone.utc).isoformat()})
+
+            ready, status = auto_evolve_status(root, Config(auto_evolve_min_chat_events=0))
+
+            self.assertFalse(ready)
+            self.assertEqual(status, "auto evolution is already running")
+
+    def test_auto_evolve_recovers_stale_running_state(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            started_at = datetime.now(timezone.utc) - timedelta(seconds=3600)
+            write_json(auto_evolve_state_path(root), {"running": True, "started_at": started_at.isoformat()})
+
+            ready, status = auto_evolve_status(
+                root,
+                Config(auto_evolve_min_chat_events=0, auto_evolve_stale_running_seconds=60),
+            )
+
+            self.assertTrue(ready)
+            self.assertEqual(status, "recovered stale auto evolution state")
 
 
 if __name__ == "__main__":
