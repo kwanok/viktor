@@ -1,15 +1,23 @@
-# Viktor HyperAgent Working Notes
+# Viktor Agent Working Notes
 
-This repository exists to build Viktor as a self-evolving personal HyperAgent.
+This repository exists for one purpose: build Viktor Agent as a self-evolving agent.
 
-The goal is not to manually patch prompts whenever the user gives feedback. The goal is to create a runtime and evolution loop where Viktor can observe conversation failures, infer the missing behavior or capability, propose mutations, validate them, judge whether they improve Viktor, and make promoted changes available to the live Slack experience.
+Do not expand the project beyond that. All design choices should serve the self-evolution loop: observe failures, infer missing behavior or capability, propose mutations, validate them, judge whether they improve Viktor, and make promoted changes available to the live runtime.
 
 ## Core Objective
 
-- Viktor should become closer to the user's judgment style over time.
-- Judgment style matters more than surface voice: tradeoffs, risk instincts, evidence standards, explanation density, implementation taste, and when to act or stay quiet.
-- Writing style still matters, but it should follow from the self-model and observed preferences rather than being hand-patched case by case.
+- Viktor Agent should improve itself from observed interaction data.
+- Current improvement target: become closer to the user's judgment style over time.
+- Judgment style means tradeoffs, risk instincts, evidence standards, explanation density, implementation taste, and when to act or stay quiet.
+- Surface voice is secondary and should be handled only as part of measurable self-evolution.
 - Capability failures should become structured capability gaps, not fake confidence or prompt-only fixes.
+
+## Scope Boundary
+
+- Do not turn Viktor Agent into a broader platform, persona project, product vision, or philosophical claim.
+- Do not encode one-off conversation incidents as permanent top-level project purpose.
+- Do not manually patch every preference as the main solution; build mechanisms that let Viktor improve from future cases.
+- Treat identity, tone, memory, tools, Slack behavior, runtime lifecycle, and judging as implementation surfaces for self-evolution only.
 
 ## Agent Roles
 
@@ -32,7 +40,7 @@ These artifacts may evolve through the archive loop:
 - `memory_policy.yaml`
 - `helpers.py`, within validator-approved pure helper rules
 
-Identity, relationship, tone, and internal/external boundary corrections belong in `self_model.yaml`, not scattered across task prompts.
+Identity, relationship, tone, and internal/external boundary corrections belong in `self_model.yaml`, but only as runtime behavior controls for Viktor Agent.
 
 ## Capability Gaps
 
@@ -60,7 +68,6 @@ Self-evolution is incomplete unless promoted changes can reach the live runtime.
 
 ## Engineering Boundary
 
-- Do not encode one-off conversation incidents as permanent top-level project purpose.
 - Keep examples out of this file unless they clarify a general rule.
 - Prefer mechanisms that let Viktor learn from future cases over hardcoded fixes for a single case.
 - Do not grant new external permissions, mutate accounts, or perform destructive actions without explicit approval.
