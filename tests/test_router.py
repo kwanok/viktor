@@ -25,6 +25,10 @@ class RouterTests(unittest.TestCase):
         self.assertTrue(decision.should_respond)
         self.assertGreaterEqual(decision.score, 0.65)
 
+    def test_router_responds_to_name_and_help_request(self) -> None:
+        self.assertTrue(score_message("빅토르야 뭐하니").should_respond)
+        self.assertTrue(score_message("나좀 도와줄 사람").should_respond)
+
     def test_router_label_reactions(self) -> None:
         with workspace_ctx() as root:
             init_workspace(root)
@@ -116,4 +120,3 @@ def _add_router_example(root, channel: str, slack_ts: str, text: str, label: str
 
 if __name__ == "__main__":
     unittest.main()
-

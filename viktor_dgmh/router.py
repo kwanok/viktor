@@ -17,14 +17,16 @@ DEFAULT_ROUTER_POLICY = {
     "weights": {
         "question_like": 0.35,
         "agent_mentioned": 0.35,
+        "help_request": 0.65,
         "judgment_topic": 0.25,
         "question_about_judgment_topic": 0.10,
         "chatter": -0.25,
         "too_short": -0.25,
     },
     "keywords": {
-        "question_like": ["어떻게", "뭐야", "왜", "가능", "괜찮", "생각", "을까", "ㄹ까"],
-        "agent_mentioned": ["viktor", "빅터", "에이전트", "agent", "ai"],
+        "question_like": ["어떻게", "뭐야", "뭐하", "왜", "가능", "괜찮", "생각", "을까", "ㄹ까", "하니", "하세요", "하시나요"],
+        "agent_mentioned": ["viktor", "빅터", "빅토르", "선생님", "에이전트", "agent", "ai"],
+        "help_request": ["도와", "도움", "help", "헬프"],
         "judgment_topic": ["설계", "구현", "코드", "논문", "paper", "리뷰", "판단", "위험", "삭제", "배포", "langgraph", "openclaw"],
         "chatter": ["ㅋㅋ", "ㅎㅎ", "ㅇㅋ", "ok", "thanks", "고마워"],
     },
@@ -71,6 +73,9 @@ def score_message(text: str, policy: dict | None = None) -> RouterDecision:
     if _contains_any(lower, keywords.get("agent_mentioned", [])):
         score += float(weights.get("agent_mentioned", 0.0))
         reasons.append("agent-mentioned")
+    if _contains_any(lower, keywords.get("help_request", [])):
+        score += float(weights.get("help_request", 0.0))
+        reasons.append("help-request")
     if judgment_topic:
         score += float(weights.get("judgment_topic", 0.0))
         reasons.append("judgment-topic")
@@ -212,7 +217,7 @@ def mutate_router_policy(parent: dict, candidate_id: str, index: int) -> dict:
     threshold = float(policy.get("threshold", {}).get("respond", 0.65))
     policy.setdefault("threshold", {})["respond"] = round(max(0.35, min(0.9, threshold + rng.choice([-0.05, -0.03, 0.03, 0.05]))), 4)
     for key, value in list(policy.get("weights", {}).items()):
-        if key in {"question_like", "agent_mentioned", "judgment_topic", "question_about_judgment_topic", "chatter", "too_short"}:
+        if key in {"question_like", "agent_mentioned", "help_request", "judgment_topic", "question_about_judgment_topic", "chatter", "too_short"}:
             delta = rng.choice([-0.05, 0.0, 0.05])
             policy["weights"][key] = round(max(-1.0, min(1.0, float(value) + delta)), 4)
     extra_keywords = ["검토", "방향", "선택", "트레이드오프", "문제", "에러"]
@@ -235,4 +240,3 @@ def _contains_any(text: str, words: list[str]) -> bool:
 
 def _safe_div(numerator: float, denominator: float) -> float:
     return numerator / denominator if denominator else 0.0
-

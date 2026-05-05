@@ -25,6 +25,11 @@ class SlackAppTests(unittest.TestCase):
 
         self.assertFalse(decision.should_respond)
 
+    def test_channel_router_responds_to_viktor_alias(self) -> None:
+        decision = should_respond_to_channel_message("빅토르 선생님 뭐하시나요", min_score=0.65)
+
+        self.assertTrue(decision.should_respond)
+
 
 if __name__ == "__main__":
     unittest.main()

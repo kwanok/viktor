@@ -5,6 +5,7 @@ threshold:
 weights:
   question_like: 0.35
   agent_mentioned: 0.35
+  help_request: 0.65
   judgment_topic: 0.25
   question_about_judgment_topic: 0.1
   chatter: -0.25
@@ -13,18 +14,29 @@ keywords:
   question_like:
   - 어떻게
   - 뭐야
+  - 뭐하
   - 왜
   - 가능
   - 괜찮
   - 생각
   - 을까
   - ㄹ까
+  - 하니
+  - 하세요
+  - 하시나요
   agent_mentioned:
   - viktor
   - 빅터
+  - 빅토르
+  - 선생님
   - 에이전트
   - agent
   - ai
+  help_request:
+  - 도와
+  - 도움
+  - help
+  - 헬프
   judgment_topic:
   - 설계
   - 구현
