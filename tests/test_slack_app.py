@@ -11,6 +11,8 @@ from viktor_dgmh.slack_app import (
     REACTION_TO_FEEDBACK,
     _answer_and_map,
     _compose_slack_prompt,
+    _handle_channel_message,
+    _has_slack_user_mention,
     _strip_bot_mentions,
     _thread_context_from_slack,
     should_respond_to_channel_message,
@@ -40,6 +42,15 @@ def fake_say(**kwargs):
     return {"channel": "C1", "ts": "2"}
 
 
+class CountingSay:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        return {"channel": "C1", "ts": "2"}
+
+
 class SlackAppTests(unittest.TestCase):
     def test_reaction_mapping_matches_feedback_commands(self) -> None:
         self.assertEqual(REACTION_TO_FEEDBACK["scissors"], "/too-long")
@@ -48,6 +59,10 @@ class SlackAppTests(unittest.TestCase):
 
     def test_strip_bot_mentions(self) -> None:
         self.assertEqual(_strip_bot_mentions("<@U123> evaluator 설명해줘").strip(), "evaluator 설명해줘")
+
+    def test_has_slack_user_mention(self) -> None:
+        self.assertTrue(_has_slack_user_mention("<@U123> 안녕"))
+        self.assertFalse(_has_slack_user_mention("빅토르 안녕"))
 
     def test_channel_router_responds_to_judgment_question(self) -> None:
         decision = should_respond_to_channel_message("이 LangGraph 설계 괜찮을까?", min_score=0.65)
@@ -64,6 +79,22 @@ class SlackAppTests(unittest.TestCase):
         decision = should_respond_to_channel_message("빅토르 선생님 뭐하시나요?", min_score=0.65)
 
         self.assertTrue(decision.should_respond)
+
+    def test_channel_handler_skips_mention_events(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            say = CountingSay()
+
+            _handle_channel_message(
+                root,
+                FakeProvider(),
+                Config(),
+                {"channel": "C1", "ts": "1", "user": "U1", "text": "<@BOT> 안녕"},
+                say,
+                FakeLogger(),
+            )
+
+            self.assertEqual(say.calls, [])
 
     def test_thread_context_skips_current_message(self) -> None:
         context = _thread_context_from_slack(

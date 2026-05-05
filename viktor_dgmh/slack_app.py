@@ -156,6 +156,9 @@ def _handle_channel_message(
     text = event.get("text", "").strip()
     if not text:
         return
+    if _has_slack_user_mention(text):
+        logger.debug("Skipping channel message with Slack mention; app_mention handles direct mentions.")
+        return
     if parse_shell_command(text):
         _handle_shell_command(root, config, text, event, say, logger)
         return
@@ -332,6 +335,10 @@ def _answer_and_map(
 
 def _strip_bot_mentions(text: str) -> str:
     return re.sub(r"<@[A-Z0-9]+>", "", text)
+
+
+def _has_slack_user_mention(text: str) -> bool:
+    return bool(re.search(r"<@[A-Z0-9]+>", text))
 
 
 def should_respond_to_channel_message(text: str, *, min_score: float = 0.65):
