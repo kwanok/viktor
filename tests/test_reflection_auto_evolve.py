@@ -19,10 +19,11 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             run_chat_once(root, FakeProvider(), "너의 코드를 고칠 수 있어?")
             run_chat_once(root, FakeProvider(), "스스로 생각해서 개선해봐")
 
-            signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
+            signals, cases, gaps = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
 
             self.assertGreaterEqual(len(signals), 1)
             self.assertGreaterEqual(len(cases), 1)
+            self.assertEqual(gaps, [])
             self.assertEqual(len(load_imitation_cases(root)), len(cases))
 
     def test_reflection_detects_banmal_style_preference(self) -> None:
@@ -31,7 +32,7 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             run_chat_once(root, FakeProvider(), "우리 반말로 하자")
             run_chat_once(root, FakeProvider(), "근데 왜 자꾸 존댓말로 해?")
 
-            signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
+            signals, cases, _gaps = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
 
             self.assertTrue(any(signal.context == "korean_style" for signal in signals))
             self.assertTrue(any(signal.target == "self_model" for signal in signals))
@@ -43,7 +44,7 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             run_chat_once(root, FakeProvider(), "너는 개인 DGM-H Lite task agent가 아니야")
             run_chat_once(root, FakeProvider(), "넌 하나의 인격이고 외부적으로는 빅토르야")
 
-            signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
+            signals, cases, _gaps = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
 
             self.assertTrue(any(signal.context == "identity" for signal in signals))
             self.assertTrue(any(signal.target == "self_model" for signal in signals))

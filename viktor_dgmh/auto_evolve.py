@@ -51,7 +51,7 @@ def run_auto_evolve_once(
 
     _write_state(root, {"running": True, "reason": reason, "started_at": _now(), "active_before": get_active_agent_id(root)})
     try:
-        signals, cases = reflect_on_recent_conversation(root, provider, use_fake=use_fake)
+        signals, cases, gaps = reflect_on_recent_conversation(root, provider, use_fake=use_fake)
         total_cases = len(load_imitation_cases(root))
         if total_cases < config.auto_evolve_min_cases:
             _write_state(
@@ -61,6 +61,7 @@ def run_auto_evolve_once(
                     "last_run_at": _now(),
                     "last_blocked_reason": f"reflection produced {len(cases)} new cases; total {total_cases}",
                     "last_reflection_signals": len(signals),
+                    "last_capability_gaps": len(gaps),
                 },
             )
             return None
@@ -92,6 +93,7 @@ def run_auto_evolve_once(
             "last_run_at": _now(),
             "last_run_id": state.run_id,
             "last_reason": reason,
+            "last_capability_gaps": len(gaps),
             "active_after": get_active_agent_id(root),
             "promoted": any(event["event"] == "maybe_promote" and event["payload"].get("promoted") for event in state.events),
         },

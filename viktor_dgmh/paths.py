@@ -23,6 +23,10 @@ def memory_dir(root: Path) -> Path:
     return root / "memory"
 
 
+def runtime_dir(root: Path) -> Path:
+    return root / "runtime"
+
+
 def chat_sessions_dir(root: Path) -> Path:
     return memory_dir(root) / "chat_sessions"
 
@@ -33,6 +37,10 @@ def preferences_path(root: Path) -> Path:
 
 def imitation_cases_path(root: Path) -> Path:
     return memory_dir(root) / "imitation_cases.jsonl"
+
+
+def capability_gaps_path(root: Path) -> Path:
+    return memory_dir(root) / "capability_gaps.jsonl"
 
 
 def auto_evolve_state_path(root: Path) -> Path:
@@ -65,6 +73,14 @@ def router_labels_path(root: Path) -> Path:
 
 def shell_commands_path(root: Path) -> Path:
     return memory_dir(root) / "shell_commands.jsonl"
+
+
+def restart_requested_path(root: Path) -> Path:
+    return runtime_dir(root) / "restart_requested.json"
+
+
+def daemon_state_path(root: Path) -> Path:
+    return runtime_dir(root) / "daemon_state.json"
 
 
 def config_path(root: Path) -> Path:

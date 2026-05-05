@@ -9,7 +9,7 @@ import yaml
 from .archive import copy_parent_to_child, load_agent, next_agent_id, write_child_metadata
 from .defaults import DEFAULT_SELF_MODEL
 from .llm import ChatProvider
-from .memory import load_imitation_cases, load_preferences, load_recent_chat_events
+from .memory import load_capability_gaps, load_imitation_cases, load_preferences, load_recent_chat_events
 from .models import AggregateScore
 from .prompt_compiler import load_self_model
 from .serialization import write_json
@@ -112,6 +112,7 @@ class MetaAgent:
     def build_evolution_brief(self) -> dict:
         preferences = load_preferences(self.root)[-12:]
         cases = load_imitation_cases(self.root)[-12:]
+        capability_gaps = load_capability_gaps(self.root)[-12:]
         events = load_recent_chat_events(self.root, limit=20)
         transcript = [
             {
@@ -151,6 +152,20 @@ class MetaAgent:
                     "weight": case.weight,
                 }
                 for case in cases
+            ],
+            "recent_capability_gaps": [
+                {
+                    "gap_id": gap.gap_id,
+                    "source": gap.source,
+                    "summary": gap.summary,
+                    "evidence": gap.evidence,
+                    "requested_capability": gap.requested_capability,
+                    "failure_mode": gap.failure_mode,
+                    "required_changes": gap.required_changes,
+                    "requires_restart": gap.requires_restart,
+                    "status": gap.status,
+                }
+                for gap in capability_gaps
             ],
             "recent_transcript": transcript,
         }

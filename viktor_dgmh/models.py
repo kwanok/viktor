@@ -107,6 +107,7 @@ class ReflectionPolicy(BaseModel):
             "weak evidence",
             "unsafe or permission-heavy instincts",
             "failure to act when action was expected",
+            "missing runtime, code, Slack scope, or tool capabilities",
         ]
     )
     extraction_rules: list[str] = Field(
@@ -116,6 +117,7 @@ class ReflectionPolicy(BaseModel):
             "Use target=self_model for identity, relationship, tone, banmal/honorific, and internal/external boundary corrections.",
             "Use target=task_prompt for judgment, evidence, implementation taste, and explanation density.",
             "Use target=policy for memory, tool, approval, or routing behavior.",
+            "Record missing runtime/code/tool capabilities as capability gaps, not as prompt-only preferences.",
         ]
     )
 
@@ -347,6 +349,19 @@ class ImitationCase(BaseModel):
     weight: float = 1.0
 
 
+class CapabilityGap(BaseModel):
+    gap_id: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    source: str
+    summary: str
+    evidence: list[str] = Field(default_factory=list)
+    requested_capability: str
+    failure_mode: str
+    required_changes: list[str] = Field(default_factory=list)
+    requires_restart: bool = False
+    status: Literal["open", "planned", "resolved", "dismissed"] = "open"
+
+
 class PairwiseResult(BaseModel):
     case_id: str
     winner: Literal["active", "candidate", "tie"]
@@ -434,3 +449,12 @@ class ShellCommandRecord(BaseModel):
     stdout: str = ""
     stderr: str = ""
     timed_out: bool = False
+
+
+class RestartRequest(BaseModel):
+    request_id: str
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    reason: str
+    source: str = "cli"
+    requested_by: str | None = None
+    status: Literal["pending", "handled", "blocked", "failed"] = "pending"

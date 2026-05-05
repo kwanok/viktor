@@ -4,8 +4,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .models import ChatEvent, ImitationCase, PreferenceSignal
-from .paths import chat_sessions_dir, imitation_cases_path, preferences_path, slack_message_map_path
+from .models import CapabilityGap, ChatEvent, ImitationCase, PreferenceSignal
+from .paths import capability_gaps_path, chat_sessions_dir, imitation_cases_path, preferences_path, slack_message_map_path
 from .serialization import append_jsonl, read_jsonl
 
 
@@ -42,12 +42,24 @@ def append_imitation_case(root: Path, case: ImitationCase) -> None:
     append_jsonl(imitation_cases_path(root), case.model_dump())
 
 
+def append_capability_gap(root: Path, gap: CapabilityGap) -> None:
+    append_jsonl(capability_gaps_path(root), gap.model_dump())
+
+
 def load_preferences(root: Path) -> list[PreferenceSignal]:
     return [PreferenceSignal.model_validate(row) for row in read_jsonl(preferences_path(root))]
 
 
 def load_imitation_cases(root: Path) -> list[ImitationCase]:
     return [ImitationCase.model_validate(row) for row in read_jsonl(imitation_cases_path(root))]
+
+
+def load_capability_gaps(root: Path) -> list[CapabilityGap]:
+    return [CapabilityGap.model_validate(row) for row in read_jsonl(capability_gaps_path(root))]
+
+
+def find_capability_gap(root: Path, gap_id: str) -> CapabilityGap | None:
+    return next((gap for gap in load_capability_gaps(root) if gap.gap_id == gap_id), None)
 
 
 def load_session_events(root: Path, session_id: str) -> list[ChatEvent]:

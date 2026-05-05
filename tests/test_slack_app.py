@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+import yaml
 
 from tests.workspace import workspace_ctx
 from viktor_dgmh.archive import init_workspace
@@ -136,6 +139,12 @@ class SlackAppTests(unittest.TestCase):
                 )
 
             self.assertTrue(schedule.called)
+
+    def test_manifest_does_not_grant_reaction_write_scope_yet(self) -> None:
+        manifest = yaml.safe_load((Path.cwd() / "slack_app_manifest.yaml").read_text(encoding="utf-8"))
+        scopes = manifest["oauth_config"]["scopes"]["bot"]
+
+        self.assertNotIn("reactions:write", scopes)
 
 
 if __name__ == "__main__":

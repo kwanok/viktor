@@ -9,13 +9,14 @@ from .evaluator import evaluate_agent
 from .imitation import evaluate_pairwise_imitation
 from .llm_judge import evaluate_llm_judge
 from .llm import provider_from_config
-from .memory import load_imitation_cases, load_preferences
+from .memory import find_capability_gap, load_capability_gaps, load_imitation_cases, load_preferences
 from .models import Config
 from .prompt_compiler import load_self_model
 from .auto_evolve import run_auto_evolve_once
 from .reflection import reflect_on_recent_conversation
 from .runner import run_evolution
 from .router import ensure_router, evaluate_router, evolve_router, load_router_policy, promote_router
+from .runtime_lifecycle import SlackSupervisor, request_restart, runtime_status
 from .slack_app import serve_slack_app
 from .validator import validate_agent_dir
 
@@ -63,6 +64,25 @@ def main() -> None:
 
     self_evolve_p = sub.add_parser("self-evolve", help="Reflect on conversation memory, then run a small evolution.")
     self_evolve_p.add_argument("--fake", action="store_true")
+
+    capability_p = sub.add_parser("capability", help="Inspect recorded capability gaps.")
+    capability_sub = capability_p.add_subparsers(dest="capability_command", required=True)
+    capability_sub.add_parser("list", help="List capability gaps.")
+    capability_inspect_p = capability_sub.add_parser("inspect", help="Inspect one capability gap.")
+    capability_inspect_p.add_argument("--gap", required=True)
+
+    runtime_p = sub.add_parser("runtime", help="Inspect and request runtime lifecycle changes.")
+    runtime_sub = runtime_p.add_subparsers(dest="runtime_command", required=True)
+    runtime_request_p = runtime_sub.add_parser("request-restart", help="Request a supervisor-managed restart.")
+    runtime_request_p.add_argument("--reason", required=True)
+    runtime_request_p.add_argument("--source", default="cli")
+    runtime_request_p.add_argument("--requested-by", default=None)
+    runtime_sub.add_parser("status", help="Print runtime lifecycle status.")
+
+    daemon_p = sub.add_parser("daemon", help="Run local supervisors.")
+    daemon_sub = daemon_p.add_subparsers(dest="daemon_command", required=True)
+    daemon_slack_p = daemon_sub.add_parser("slack", help="Run Slack app under a supervisor.")
+    daemon_slack_p.add_argument("--fake", action="store_true")
 
     slack_p = sub.add_parser("slack", help="Run Slack app integrations.")
     slack_sub = slack_p.add_subparsers(dest="slack_command", required=True)
@@ -186,9 +206,10 @@ def main() -> None:
 
     if args.command == "reflect":
         provider = provider_from_config(config, root=root, use_fake=args.fake)
-        signals, cases = reflect_on_recent_conversation(root, provider, max_events=args.max_events, use_fake=args.fake)
+        signals, cases, gaps = reflect_on_recent_conversation(root, provider, max_events=args.max_events, use_fake=args.fake)
         print(f"Reflection signals: {len(signals)}")
         print(f"Imitation cases: {len(cases)}")
+        print(f"Capability gaps: {len(gaps)}")
         return
 
     if args.command == "self-evolve":
@@ -200,6 +221,45 @@ def main() -> None:
         print(f"Self-evolve complete: {state.run_id}")
         print(f"Active hyperagent: {load_agent(root, 'active').id}")
         return
+
+    if args.command == "capability":
+        if args.capability_command == "list":
+            gaps = load_capability_gaps(root)
+            print(f"Capability gaps: {len(gaps)}")
+            for gap in gaps:
+                print(f"{gap.gap_id} {gap.status} {gap.requested_capability}: {gap.summary}")
+            return
+        if args.capability_command == "inspect":
+            gap = find_capability_gap(root, args.gap)
+            if gap is None:
+                print(f"Unknown capability gap: {args.gap}")
+                return
+            _print_capability_gap(gap)
+            return
+
+    if args.command == "runtime":
+        if args.runtime_command == "request-restart":
+            request = request_restart(root, args.reason, source=args.source, requested_by=args.requested_by)
+            print(f"Restart requested: {request.request_id}")
+            print(f"Status: {request.status}")
+            return
+        if args.runtime_command == "status":
+            status = runtime_status(root)
+            restart = status.get("restart_request")
+            daemon = status.get("daemon_state") or {}
+            print(f"Restart request: {restart.get('status') if restart else 'none'}")
+            if restart:
+                print(f"Request id: {restart.get('request_id')}")
+                print(f"Reason: {restart.get('reason')}")
+            print(f"Daemon status: {daemon.get('status', 'unknown')}")
+            if daemon.get("child_pid"):
+                print(f"Child pid: {daemon.get('child_pid')}")
+            return
+
+    if args.command == "daemon":
+        if args.daemon_command == "slack":
+            SlackSupervisor.for_slack(root, use_fake=args.fake).serve_forever()
+            return
 
     if args.command == "slack":
         if args.slack_command == "serve":
@@ -242,3 +302,17 @@ def _format_router_metrics(metrics) -> str:
         f"precision={metrics.precision:.4f} recall={metrics.recall:.4f} f1={metrics.f1:.4f} "
         f"fpr={metrics.false_positive_rate:.4f} fnr={metrics.false_negative_rate:.4f}"
     )
+
+
+def _print_capability_gap(gap) -> None:
+    print(f"Capability gap: {gap.gap_id}")
+    print(f"Status: {gap.status}")
+    print(f"Requested capability: {gap.requested_capability}")
+    print(f"Failure mode: {gap.failure_mode}")
+    print(f"Requires restart: {gap.requires_restart}")
+    print(f"Required changes: {', '.join(gap.required_changes) if gap.required_changes else '-'}")
+    print(f"Summary: {gap.summary}")
+    if gap.evidence:
+        print("Evidence:")
+        for item in gap.evidence:
+            print(f"- {item}")

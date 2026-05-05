@@ -6,8 +6,8 @@ from pathlib import Path
 
 from .archive import load_agent
 from .llm import ChatProvider
-from .memory import append_imitation_case, append_preference, load_recent_chat_events
-from .models import ChatEvent, ImitationCase, PreferenceSignal
+from .memory import append_capability_gap, append_imitation_case, append_preference, load_recent_chat_events
+from .models import CapabilityGap, ChatEvent, ImitationCase, PreferenceSignal
 from .strategy import load_reflection_policy
 
 
@@ -17,15 +17,17 @@ def reflect_on_recent_conversation(
     *,
     max_events: int = 40,
     use_fake: bool = False,
-) -> tuple[list[PreferenceSignal], list[ImitationCase]]:
+) -> tuple[list[PreferenceSignal], list[ImitationCase], list[CapabilityGap]]:
     events = load_recent_chat_events(root, limit=max_events)
     if len(events) < 4:
-        return [], []
+        return [], [], []
     policy = load_reflection_policy(load_agent(root, "active").path)
-    observations = _fake_observations(events) if use_fake else _request_reflection(events, provider, policy.model_dump())
+    observations, gap_items = _fake_reflection(events) if use_fake else _request_reflection(events, provider, policy.model_dump())
     signals: list[PreferenceSignal] = []
     cases: list[ImitationCase] = []
+    gaps: list[CapabilityGap] = []
     seen_sources = _existing_reflection_sources(root)
+    seen_gaps = _existing_capability_gap_keys(root)
     pairs = _prompt_answer_pairs(events)
 
     for item in observations:
@@ -67,17 +69,42 @@ def reflect_on_recent_conversation(
         append_imitation_case(root, case)
         signals.append(signal)
         cases.append(case)
-    return signals, cases
+
+    for item in gap_items:
+        requested_capability = str(item.get("requested_capability") or "").strip()
+        source = str(item.get("source") or "conversation_reflection")
+        evidence = _string_list(item.get("evidence"))
+        key = (requested_capability, tuple(evidence))
+        if not requested_capability or key in seen_gaps:
+            continue
+        gap = CapabilityGap(
+            gap_id=f"gap_{uuid.uuid4().hex}",
+            source=source,
+            summary=str(item.get("summary") or "Capability gap found from conversation."),
+            evidence=evidence,
+            requested_capability=requested_capability,
+            failure_mode=str(item.get("failure_mode") or "claimed_or_implied_missing_capability"),
+            required_changes=_string_list(item.get("required_changes")),
+            requires_restart=bool(item.get("requires_restart", False)),
+            status=_normalize_gap_status(str(item.get("status") or "open")),  # type: ignore[arg-type]
+        )
+        append_capability_gap(root, gap)
+        gaps.append(gap)
+    return signals, cases, gaps
 
 
-def _request_reflection(events: list[ChatEvent], provider: ChatProvider, policy: dict) -> list[dict]:
+def _request_reflection(events: list[ChatEvent], provider: ChatProvider, policy: dict) -> tuple[list[dict], list[dict]]:
     transcript = "\n".join(f"{event.event_id} {event.role}: {event.text}" for event in events)
     prompt = (
         "Review this user/agent transcript for self-improvement opportunities. "
         "Follow the active reflection policy, then infer problems from the transcript. "
-        "Return JSON only: {\"observations\":[...]} where each observation has source_event_id, "
+        "Return JSON only with keys `observations` and `capability_gaps`. "
+        "`observations` contains preference/behavior observations with source_event_id, "
         "target (self_model|task_prompt|policy), kind, polarity (positive|negative|neutral), strength (0..1), "
-        "context, preference, and optional preferred_text.\n\n"
+        "context, preference, and optional preferred_text. "
+        "`capability_gaps` contains missing runtime/code/tool capabilities with source, summary, evidence, "
+        "requested_capability, failure_mode, required_changes, requires_restart, and status. "
+        "Do not treat missing Slack actions as prompt/style issues when they require scopes, code, or restart.\n\n"
         f"Active reflection policy:\n{json.dumps(policy, ensure_ascii=False, indent=2)}\n\n"
         f"{transcript}"
     )
@@ -85,13 +112,15 @@ def _request_reflection(events: list[ChatEvent], provider: ChatProvider, policy:
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        return []
+        return [], []
     observations = data.get("observations", [])
-    return observations if isinstance(observations, list) else []
+    gaps = data.get("capability_gaps", [])
+    return observations if isinstance(observations, list) else [], gaps if isinstance(gaps, list) else []
 
 
-def _fake_observations(events: list[ChatEvent]) -> list[dict]:
+def _fake_reflection(events: list[ChatEvent]) -> tuple[list[dict], list[dict]]:
     observations = []
+    gaps = []
     pairs = _prompt_answer_pairs(events)
     for prompt_id, (prompt, _answer) in pairs.items():
         if _mentions_tone_preference(prompt.text):
@@ -150,7 +179,21 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
                 "preference": "Match the user's judgment style with concise, action-oriented answers.",
             }
         )
-    return observations
+    if _mentions_slack_eyes_reaction_gap(events):
+        evidence = [event.text for event in events if ":eyes:" in event.text or "이모지" in event.text or "리액션" in event.text]
+        gaps.append(
+            {
+                "source": "conversation_reflection",
+                "summary": "User asked Viktor to add :eyes: as a Slack reaction to the user's message, but Viktor lacks that runtime capability.",
+                "evidence": evidence[-4:],
+                "requested_capability": "slack_reaction_add",
+                "failure_mode": "missing_slack_action_capability",
+                "required_changes": ["slack_scope", "code", "restart"],
+                "requires_restart": True,
+                "status": "open",
+            }
+        )
+    return observations, gaps
 
 
 def _normalize_target(target: str, context: str, self_model_contexts: list[str] | None = None) -> str:
@@ -186,7 +229,34 @@ def _mentions_identity_preference(text: str) -> bool:
     )
 
 
+def _mentions_slack_eyes_reaction_gap(events: list[ChatEvent]) -> bool:
+    texts = [event.text for event in events if event.role == "user"]
+    has_eyes = any(":eyes:" in text or "eyes" in text.lower() for text in texts)
+    asks_reaction = any("이모지" in text or "리액션" in text or "reaction" in text.lower() for text in texts)
+    asks_to_try = any("해봐" in text or "달아" in text or "붙" in text for text in texts)
+    return has_eyes and asks_reaction and asks_to_try
+
+
+def _string_list(value) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(item) for item in value if str(item).strip()]
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def _normalize_gap_status(value: str) -> str:
+    return value if value in {"open", "planned", "resolved", "dismissed"} else "open"
+
+
 def _existing_reflection_sources(root: Path) -> set[str]:
     from .memory import load_preferences
 
     return {signal.source_event_id for signal in load_preferences(root) if signal.kind.startswith("reflection")}
+
+
+def _existing_capability_gap_keys(root: Path) -> set[tuple[str, tuple[str, ...]]]:
+    from .memory import load_capability_gaps
+
+    return {(gap.requested_capability, tuple(gap.evidence)) for gap in load_capability_gaps(root)}

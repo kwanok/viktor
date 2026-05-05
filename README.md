@@ -88,6 +88,31 @@ Slack app, and tests. Runtime separation is still intentionally lightweight:
 these roles share the same process and archive, while their prompts, policies,
 and responsibilities are separate.
 
+## Capability gaps and runtime lifecycle
+
+Viktor records missing runtime capabilities separately from preferences. For
+example, `:eyes:` Slack reactions are treated as a capability gap, not a prompt
+style issue. This repo intentionally does not implement that reaction behavior
+yet.
+
+```bash
+uv run -m viktor_dgmh capability list
+uv run -m viktor_dgmh capability inspect --gap <gap-id>
+```
+
+Code or Slack capability changes require a supervised restart to affect the
+running Slack process. A restart can be requested through local runtime state:
+
+```bash
+uv run -m viktor_dgmh runtime request-restart --reason "validated code change"
+uv run -m viktor_dgmh runtime status
+uv run -m viktor_dgmh daemon slack
+```
+
+The daemon starts `slack serve` as a child process and restarts it only when a
+pending restart request is present. It guards against restart loops and does not
+grant Slack scopes or mutate code.
+
 ## Self model
 
 Each archive has a mutable `self_model.yaml`. It is the source of truth for
