@@ -5,11 +5,12 @@ from pathlib import Path
 from .benchmark import load_benchmark_cases
 from .llm import ChatProvider
 from .models import AggregateScore, BenchmarkCase, CaseScore
+from .prompt_compiler import compile_system_prompt_for_path
 
 
 def evaluate_agent(root: Path, agent_path: Path, provider: ChatProvider, use_fake: bool = False) -> AggregateScore:
     cases = load_benchmark_cases(root)
-    task_prompt = (agent_path / "task_prompt.md").read_text(encoding="utf-8")
+    task_prompt = compile_system_prompt_for_path(root, agent_path, include_ephemeral=False)
     case_scores = []
     for case in cases:
         answer = _answer_case(task_prompt, case, provider, use_fake)
@@ -131,4 +132,3 @@ def _trait_present(trait: str, text: str) -> bool:
 
 def _clamp(value: float) -> float:
     return min(1.0, max(0.0, value))
-

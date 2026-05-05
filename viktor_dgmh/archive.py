@@ -7,6 +7,7 @@ from pathlib import Path
 from .defaults import (
     DEFAULT_BENCHMARK_CASES,
     DEFAULT_CONFIG,
+    DEFAULT_SELF_MODEL,
     SEED_HELPERS,
     SEED_MEMORY_POLICY,
     SEED_META_PROMPT,
@@ -55,6 +56,7 @@ def init_workspace(root: Path, force: bool = False) -> str:
 
     created_at = datetime.now(timezone.utc).isoformat()
     (seed_path / "task_prompt.md").write_text(SEED_TASK_PROMPT, encoding="utf-8")
+    write_yaml(seed_path / "self_model.yaml", DEFAULT_SELF_MODEL)
     (seed_path / "meta_prompt.md").write_text(SEED_META_PROMPT, encoding="utf-8")
     write_yaml(seed_path / "tool_policy.yaml", SEED_TOOL_POLICY)
     write_yaml(seed_path / "memory_policy.yaml", SEED_MEMORY_POLICY)
@@ -127,6 +129,8 @@ def copy_parent_to_child(root: Path, parent_id: str, child_id: str) -> Path:
     if child_path.exists():
         raise FileExistsError(f"Candidate already exists: {child_id}")
     shutil.copytree(parent_path, child_path)
+    if not (child_path / "self_model.yaml").exists():
+        write_yaml(child_path / "self_model.yaml", DEFAULT_SELF_MODEL)
     return child_path
 
 

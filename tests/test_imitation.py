@@ -20,7 +20,10 @@ class CapturingMutationProvider:
     def chat(self, messages, *, model=None, response_format=None) -> str:
         self.messages = messages
         files = json.loads(messages[-1]["content"].split("Current files:\n", 1)[1])
-        files["task_prompt.md"] += "\n- Use casual Korean banmal with the user by default.\n"
+        files["self_model.yaml"] = files["self_model.yaml"].replace(
+            "public_identity_rules:\n",
+            "public_identity_rules:\n- Use casual Korean banmal with the user by default.\n",
+        )
         return json.dumps({"mutation_summary": "Encode banmal preference.", "files": files}, ensure_ascii=False)
 
 
@@ -65,6 +68,7 @@ class ImitationTests(unittest.TestCase):
                     polarity="negative",
                     strength=0.9,
                     context="korean_style",
+                    target="self_model",
                     text="Use casual Korean banmal with the user by default.",
                 ),
             )
@@ -75,7 +79,9 @@ class ImitationTests(unittest.TestCase):
             mutation_prompt = provider.messages[-1]["content"]
             self.assertIn("Evolution brief", mutation_prompt)
             self.assertIn("banmal", mutation_prompt)
-            self.assertIn("banmal", (child_path / "task_prompt.md").read_text(encoding="utf-8"))
+            self.assertIn('"target": "self_model"', mutation_prompt)
+            self.assertIn("self_model.yaml", mutation_prompt)
+            self.assertIn("banmal", (child_path / "self_model.yaml").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

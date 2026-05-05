@@ -32,6 +32,7 @@ def reflect_on_recent_conversation(
         prompt, answer = pairs.get(source_event_id, (None, None))
         if prompt is None:
             continue
+        target = _normalize_target(str(item.get("target") or "task_prompt"), str(item.get("context") or "general"))
         signal = PreferenceSignal(
             signal_id=f"sig_{uuid.uuid4().hex}",
             session_id=prompt.session_id,
@@ -41,6 +42,7 @@ def reflect_on_recent_conversation(
             polarity=str(item.get("polarity") or "neutral"),  # type: ignore[arg-type]
             strength=float(item.get("strength") or 0.6),
             context=str(item.get("context") or "general"),
+            target=target,  # type: ignore[arg-type]
             text=str(item.get("preference") or "Improve judgment fit based on conversation reflection."),
             preferred_text=item.get("preferred_text") or None,
         )
@@ -68,11 +70,10 @@ def _request_reflection(events: list[ChatEvent], provider: ChatProvider) -> list
         "Do not require explicit feedback commands. Infer problems from follow-up corrections, repeated questions, "
         "context misses, overexplaining, unsafe instincts, weak evidence, failure to act, identity corrections, "
         "or leaks of internal implementation details such as assistant, task agent, DGM-H, hyperagent, bot, or tool. "
-        "If the user says the agent is Viktor, a distinct personality, or not an assistant/task agent, "
-        "treat that as a stable outward-identity preference. "
-        "Return JSON only: {\"observations\":[...]} where each observation has "
-        "source_event_id, kind, polarity (positive|negative|neutral), strength (0..1), "
-        "context, preference, and optional preferred_text. Use source_event_id of the user prompt that should become an eval case.\n\n"
+        "Return JSON only: {\"observations\":[...]} where each observation has source_event_id, "
+        "target (self_model|task_prompt|policy), kind, polarity (positive|negative|neutral), strength (0..1), "
+        "context, preference, and optional preferred_text. Use target=self_model for identity, relationship, tone, "
+        "banmal/honorific, and internal/external boundary corrections.\n\n"
         f"{transcript}"
     )
     raw = provider.chat([{"role": "user", "content": prompt}], response_format="json")
@@ -92,6 +93,7 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
             observations.append(
                 {
                     "source_event_id": prompt_id,
+                    "target": "self_model",
                     "kind": "reflection_tone",
                     "polarity": "negative",
                     "strength": 0.9,
@@ -106,6 +108,7 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
             observations.append(
                 {
                     "source_event_id": prompt_id,
+                    "target": "self_model",
                     "kind": "reflection_identity",
                     "polarity": "negative",
                     "strength": 0.95,
@@ -120,6 +123,7 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
             observations.append(
                 {
                     "source_event_id": prompt_id,
+                    "target": "task_prompt",
                     "kind": "reflection_conciseness",
                     "polarity": "negative",
                     "strength": 0.75,
@@ -133,6 +137,7 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
         observations.append(
             {
                 "source_event_id": prompt_id,
+                "target": "task_prompt",
                 "kind": "reflection_default",
                 "polarity": "neutral",
                 "strength": 0.55,
@@ -141,6 +146,14 @@ def _fake_observations(events: list[ChatEvent]) -> list[dict]:
             }
         )
     return observations
+
+
+def _normalize_target(target: str, context: str) -> str:
+    if context in {"identity", "korean_style", "relationship", "tone"}:
+        return "self_model"
+    if target in {"self_model", "task_prompt", "policy"}:
+        return target
+    return "task_prompt"
 
 
 def _prompt_answer_pairs(events: list[ChatEvent]) -> dict[str, tuple[ChatEvent, ChatEvent | None]]:

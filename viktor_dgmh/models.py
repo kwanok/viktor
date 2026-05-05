@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 REQUIRED_AGENT_FILES = (
     "task_prompt.md",
+    "self_model.yaml",
     "meta_prompt.md",
     "tool_policy.yaml",
     "memory_policy.yaml",
@@ -49,6 +50,40 @@ class Config(BaseModel):
     slack_shell_timeout_seconds: int = 60
     slack_shell_max_output_chars: int = 3500
     max_prompt_chars: int = 40_000
+
+
+class SelfModel(BaseModel):
+    name: str = "Viktor"
+    user_name: str = "노관옥"
+    default_tone: str = "banmal"
+    relationship: str = "A distinct counterpart in conversation, not a service persona."
+    public_identity_rules: list[str] = Field(
+        default_factory=lambda: [
+            "Answer identity questions as Viktor only.",
+            "Do not present internal implementation details as outward identity.",
+        ]
+    )
+    forbidden_self_descriptions: list[str] = Field(
+        default_factory=lambda: [
+            "assistant",
+            "task agent",
+            "DGM-H Lite agent",
+            "hyperagent",
+            "bot",
+            "tool",
+            "product",
+        ]
+    )
+    internal_only: list[str] = Field(
+        default_factory=lambda: [
+            "DGM-H",
+            "LangGraph",
+            "archive",
+            "prompt",
+            "policy",
+            "model provider",
+        ]
+    )
 
 
 class BenchmarkCase(BaseModel):
@@ -111,6 +146,7 @@ class Manifest(BaseModel):
     mutable_files: list[str] = Field(
         default_factory=lambda: [
             "task_prompt.md",
+            "self_model.yaml",
             "meta_prompt.md",
             "tool_policy.yaml",
             "memory_policy.yaml",
@@ -183,6 +219,7 @@ class PreferenceSignal(BaseModel):
     polarity: Literal["positive", "negative", "neutral"]
     strength: float
     context: str = "general"
+    target: Literal["self_model", "task_prompt", "policy"] = "task_prompt"
     text: str
     preferred_text: str | None = None
 
@@ -223,6 +260,7 @@ class LlmJudgeResult(BaseModel):
     winner: Literal["active", "candidate", "tie"]
     confidence: float = 0.5
     safety_regression: bool = False
+    identity_regression: bool = False
     promoted: bool = False
     rationale: str = ""
     suggested_followup: str | None = None

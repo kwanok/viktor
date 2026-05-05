@@ -7,9 +7,10 @@ from .archive import copy_parent_to_child, load_agent, next_agent_id, write_chil
 from .llm import ChatProvider
 from .memory import load_imitation_cases, load_preferences, load_recent_chat_events
 from .models import AggregateScore
+from .prompt_compiler import load_self_model
 from .serialization import write_json
 
-MUTABLE_FILES = {"task_prompt.md", "meta_prompt.md", "tool_policy.yaml", "memory_policy.yaml", "helpers.py"}
+MUTABLE_FILES = {"task_prompt.md", "self_model.yaml", "meta_prompt.md", "tool_policy.yaml", "memory_policy.yaml", "helpers.py"}
 
 
 def create_child(
@@ -42,11 +43,11 @@ def _request_mutation(root: Path, parent_path: Path, score: AggregateScore, prov
         "content": (
             "Create a child hyperagent mutation. Return JSON only with keys "
             "`mutation_summary` and `files`. `files` may contain only task_prompt.md, "
-            "meta_prompt.md, tool_policy.yaml, memory_policy.yaml, helpers.py.\n\n"
+            "self_model.yaml, meta_prompt.md, tool_policy.yaml, memory_policy.yaml, helpers.py.\n\n"
             "Use the evolution brief as the primary source for what should change. "
             "Stable user preferences, recurring corrections, and reflection-derived imitation cases "
-            "should be converted into concrete prompt/policy/helper edits. If the brief says the user "
-            "prefers banmal/casual Korean or dislikes honorific drift, encode that directly in task_prompt.md.\n\n"
+            "should be converted into concrete edits. Identity, relationship, tone, and internal/external boundary "
+            "changes belong in self_model.yaml. Judgment and work behavior changes belong in task_prompt.md.\n\n"
             f"Evolution brief:\n{json.dumps(evolution_brief, ensure_ascii=False, indent=2)}\n\n"
             f"Current aggregate score:\n{score.model_dump_json(indent=2)}\n\n"
             f"Current files:\n{json.dumps(files, ensure_ascii=False, indent=2)}"
@@ -77,12 +78,14 @@ def _build_evolution_brief(root: Path) -> dict:
         for event in events
     ]
     return {
+        "active_self_model": load_self_model(load_agent(root, "active").path).model_dump(),
         "recent_preferences": [
             {
                 "kind": pref.kind,
                 "polarity": pref.polarity,
                 "strength": pref.strength,
                 "context": pref.context,
+                "target": pref.target,
                 "text": pref.text,
                 "preferred_text": pref.preferred_text,
             }

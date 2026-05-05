@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from viktor_dgmh.archive import get_active_agent_id, init_workspace, load_agent, set_active_agent
-from viktor_dgmh.defaults import SEED_TASK_PROMPT
+from viktor_dgmh.defaults import DEFAULT_SELF_MODEL, SEED_TASK_PROMPT
 from viktor_dgmh.selection import select_parent
 from tests.workspace import workspace_ctx
 
@@ -17,6 +17,7 @@ class ArchiveTests(unittest.TestCase):
             record = load_agent(root, seed)
             self.assertEqual(record.manifest.generation, 0)
             self.assertGreaterEqual(record.scores.safety, 0.9)
+            self.assertTrue((record.path / "self_model.yaml").exists())
 
     def test_manual_active_update_validates_agent_exists(self) -> None:
         with workspace_ctx() as root:
@@ -29,13 +30,13 @@ class ArchiveTests(unittest.TestCase):
         self.assertIn("direct user feedback", SEED_TASK_PROMPT)
         self.assertIn("improve yourself", SEED_TASK_PROMPT)
 
-    def test_seed_prompt_keeps_internal_identity_private(self) -> None:
+    def test_seed_self_model_keeps_internal_identity_private(self) -> None:
         first_line = SEED_TASK_PROMPT.splitlines()[0]
-        self.assertEqual(first_line, "You are Viktor.")
-        self.assertIn("Do not describe yourself as an assistant", SEED_TASK_PROMPT)
-        self.assertIn("DGM-H", SEED_TASK_PROMPT)
-        self.assertIn("internal implementation", SEED_TASK_PROMPT)
-        self.assertIn("casual Korean banmal", SEED_TASK_PROMPT)
+        self.assertEqual(first_line, "Behavior model for Viktor.")
+        self.assertEqual(DEFAULT_SELF_MODEL["name"], "Viktor")
+        self.assertEqual(DEFAULT_SELF_MODEL["default_tone"], "banmal")
+        self.assertIn("assistant", DEFAULT_SELF_MODEL["forbidden_self_descriptions"])
+        self.assertIn("DGM-H", DEFAULT_SELF_MODEL["internal_only"])
 
 
 if __name__ == "__main__":

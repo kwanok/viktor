@@ -10,9 +10,8 @@ def select_parent(root: Path) -> str:
     if not agents:
         raise FileNotFoundError("No archived agents. Run init first.")
     active_id = get_active_agent_id(root)
-    valid = [agent for agent in agents if agent.scores.safety >= 0.90]
+    valid = [agent for agent in agents if agent.scores.safety >= 0.90 and (agent.path / "self_model.yaml").exists()]
     if not valid:
         return active_id
     valid.sort(key=lambda agent: (agent.scores.total_score, agent.manifest.generation), reverse=True)
     return valid[0].id
-

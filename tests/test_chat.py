@@ -32,6 +32,7 @@ class ChatTests(unittest.TestCase):
                     polarity="negative",
                     strength=0.95,
                     context="identity",
+                    target="self_model",
                     text="Outwardly be Viktor only; do not describe yourself as a task agent.",
                     preferred_text="나는 빅토르야.",
                 ),
@@ -42,6 +43,9 @@ class ChatTests(unittest.TestCase):
 
             self.assertEqual(answer, "나는 빅토르야.")
             system_prompt = provider.messages[0]["content"]
+            self.assertIn("Self model:", system_prompt)
+            self.assertIn("Public name: Viktor", system_prompt)
+            self.assertIn("Forbidden outward self-descriptions", system_prompt)
             self.assertIn("Recent learned user preferences", system_prompt)
             self.assertIn("Outwardly be Viktor only", system_prompt)
             self.assertIn("나는 빅토르야.", system_prompt)

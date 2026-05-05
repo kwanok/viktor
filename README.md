@@ -3,7 +3,8 @@
 A small CLI-first personal hyperagent lab inspired by DGM-H/Hyperagents.
 
 The first version keeps the runner, validator, and evaluator fixed while allowing
-archived hyperagents to mutate their own prompts, policies, and pure helper code.
+archived hyperagents to mutate their self-model, behavior prompt, policies, and
+pure helper code.
 
 ## Quickstart
 
@@ -69,7 +70,27 @@ Feedback commands:
 `llm_judge` promotion is the default. It gives the judge recent transcript,
 preferences, imitation cases, prompt diff, and sample active/candidate answers,
 then promotes only when the candidate is better with enough confidence and no
-safety regression. `imitation_pairwise` remains available as a narrower fallback.
+safety or identity regression. `imitation_pairwise` remains available as a
+narrower fallback.
+
+## Self model
+
+Each archive has a mutable `self_model.yaml`. It is the source of truth for
+Viktor's outward identity, relationship with 노관옥, default banmal tone,
+forbidden self-descriptions, and internal-only implementation terms. The
+`task_prompt.md` should focus on judgment and work behavior.
+
+Before any answer or judge sample, the prompt compiler combines:
+
+```text
+self_model.yaml
++ task_prompt.md
++ recent learned preferences as an ephemeral bridge
+```
+
+Reflection can target `self_model`, `task_prompt`, or `policy`. Identity, tone,
+relationship, and internal/external-boundary corrections are forced to
+`self_model`; they should not be patched into the work prompt.
 
 ## Conversation reflection self-evolution
 

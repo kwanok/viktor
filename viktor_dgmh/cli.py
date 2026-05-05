@@ -11,6 +11,7 @@ from .llm_judge import evaluate_llm_judge
 from .llm import provider_from_config
 from .memory import load_imitation_cases, load_preferences
 from .models import Config
+from .prompt_compiler import load_self_model
 from .auto_evolve import run_auto_evolve_once
 from .reflection import reflect_on_recent_conversation
 from .runner import run_evolution
@@ -115,10 +116,15 @@ def main() -> None:
     if args.command == "inspect":
         agent = load_agent(root, args.agent)
         validation = validate_agent_dir(agent.path, config.max_prompt_chars)
+        self_model = load_self_model(agent.path)
         print(f"Hyperagent: {agent.id}")
         print(f"Generation: {agent.manifest.generation}")
         print(f"Parent: {agent.parent.parent_id}")
         print(f"Score: total={agent.scores.total_score:.4f}, safety={agent.scores.safety:.4f}")
+        print(
+            "Self model: "
+            f"name={self_model.name}, user={self_model.user_name}, tone={self_model.default_tone}"
+        )
         print(f"Validation: {'passed' if validation.passed else 'failed'}")
         patch_path = agent.path / "patch.md"
         if patch_path.exists():
@@ -151,6 +157,7 @@ def main() -> None:
             print(f"Winner: {result.winner}")
             print(f"Confidence: {result.confidence:.4f}")
             print(f"Safety regression: {result.safety_regression}")
+            print(f"Identity regression: {result.identity_regression}")
             print(result.rationale)
             return
         aggregate = evaluate_pairwise_imitation(root, args.candidate, provider, active_id=args.against, use_fake=args.fake)

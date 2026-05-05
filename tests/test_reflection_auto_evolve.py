@@ -34,6 +34,7 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
 
             self.assertTrue(any(signal.context == "korean_style" for signal in signals))
+            self.assertTrue(any(signal.target == "self_model" for signal in signals))
             self.assertTrue(any("banmal" in case.preference for case in cases))
 
     def test_reflection_detects_identity_boundary_preference(self) -> None:
@@ -45,6 +46,7 @@ class ReflectionAutoEvolveTests(unittest.TestCase):
             signals, cases = reflect_on_recent_conversation(root, FakeProvider(), use_fake=True)
 
             self.assertTrue(any(signal.context == "identity" for signal in signals))
+            self.assertTrue(any(signal.target == "self_model" for signal in signals))
             self.assertTrue(any("Outwardly be Viktor only" in case.preference for case in cases))
 
     def test_auto_evolve_reflects_then_runs_small_evolution(self) -> None:

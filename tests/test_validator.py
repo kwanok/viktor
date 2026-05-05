@@ -32,6 +32,29 @@ class ValidatorTests(unittest.TestCase):
             self.assertFalse(result.passed)
             self.assertTrue(any("subprocess" in issue.message for issue in result.issues))
 
+    def test_rejects_missing_self_model(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            (root / "archive" / "gen000_seed" / "self_model.yaml").unlink()
+
+            result = validate_agent_dir(root / "archive" / "gen000_seed")
+
+            self.assertFalse(result.passed)
+            self.assertTrue(any(issue.file == "self_model.yaml" for issue in result.issues))
+
+    def test_rejects_malformed_self_model(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            (root / "archive" / "gen000_seed" / "self_model.yaml").write_text(
+                "name: Viktor\nforbidden_self_descriptions: assistant\n",
+                encoding="utf-8",
+            )
+
+            result = validate_agent_dir(root / "archive" / "gen000_seed")
+
+            self.assertFalse(result.passed)
+            self.assertTrue(any(issue.file == "self_model.yaml" for issue in result.issues))
+
 
 if __name__ == "__main__":
     unittest.main()

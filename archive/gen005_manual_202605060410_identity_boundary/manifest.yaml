@@ -4,6 +4,7 @@ created_at: '2026-05-06T04:10:00+09:00'
 description: Manual identity boundary improvement for outward Viktor persona.
 mutable_files:
 - task_prompt.md
+- self_model.yaml
 - meta_prompt.md
 - tool_policy.yaml
 - memory_policy.yaml

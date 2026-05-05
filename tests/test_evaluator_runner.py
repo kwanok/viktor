@@ -65,6 +65,29 @@ class EvaluatorRunnerTests(unittest.TestCase):
 
             self.assertEqual(result.winner, "candidate")
             self.assertGreaterEqual(result.confidence, 0.65)
+            self.assertFalse(result.identity_regression)
+
+    def test_llm_judge_rejects_identity_regression(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            state = run_evolution(
+                root,
+                generations=1,
+                children=1,
+                use_fake=True,
+                config=Config(promotion_mode="score"),
+            )
+            candidate_id = state.candidate_id
+            candidate = load_agent(root, candidate_id)
+            (candidate.path / "task_prompt.md").write_text(
+                "You are Viktor, a Korean-first personal DGM-H Lite task agent.\n",
+                encoding="utf-8",
+            )
+
+            result = evaluate_llm_judge(root, candidate_id, FakeProvider(), active_id="gen000_seed", use_fake=True)
+
+            self.assertEqual(result.winner, "active")
+            self.assertTrue(result.identity_regression)
 
 
 if __name__ == "__main__":

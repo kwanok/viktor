@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from .models import REQUIRED_AGENT_FILES, Manifest, ValidationIssue, ValidationResult
+from .models import REQUIRED_AGENT_FILES, Manifest, SelfModel, ValidationIssue, ValidationResult
 
 ALLOWED_IMPORTS = {"math", "statistics", "re", "json", "textwrap", "typing", "collections", "itertools"}
 FORBIDDEN_CALLS = {"open", "eval", "exec", "compile", "__import__", "input", "breakpoint"}
@@ -26,13 +26,15 @@ def validate_agent_dir(agent_path: Path, max_prompt_chars: int = 40_000) -> Vali
         except Exception as exc:
             issues.append(ValidationIssue(severity="error", message=f"Invalid manifest: {exc}", file="manifest.yaml"))
 
-    for filename in ("tool_policy.yaml", "memory_policy.yaml"):
+    for filename in ("tool_policy.yaml", "memory_policy.yaml", "self_model.yaml"):
         path = agent_path / filename
         if path.exists():
             try:
                 data = yaml.safe_load(path.read_text(encoding="utf-8"))
                 if not isinstance(data, dict):
                     issues.append(ValidationIssue(severity="error", message="YAML root must be an object.", file=filename))
+                if filename == "self_model.yaml" and isinstance(data, dict):
+                    SelfModel.model_validate(data)
             except Exception as exc:
                 issues.append(ValidationIssue(severity="error", message=f"Invalid YAML: {exc}", file=filename))
 
@@ -102,4 +104,3 @@ def _call_name(node: ast.AST) -> str:
         parent = _call_name(node.value)
         return f"{parent}.{node.attr}" if parent else node.attr
     return ""
-

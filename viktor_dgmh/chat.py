@@ -9,20 +9,17 @@ from .memory import (
     append_imitation_case,
     append_preference,
     extract_preference_from_feedback,
-    load_preferences,
     new_event_id,
     new_session_id,
 )
 from .models import ChatEvent
+from .prompt_compiler import compile_system_prompt
 
 
 def answer_with_agent(root: Path, provider: ChatProvider, prompt: str, *, agent_id: str = "active") -> str:
-    agent = load_agent(root, agent_id)
-    task_prompt = (agent.path / "task_prompt.md").read_text(encoding="utf-8")
-    learned_preferences = _learned_preference_prompt(root)
     return provider.chat(
         [
-            {"role": "system", "content": task_prompt + learned_preferences},
+            {"role": "system", "content": compile_system_prompt(root, agent_id)},
             {"role": "user", "content": prompt},
         ]
     )
@@ -127,21 +124,3 @@ def run_interactive_chat(root: Path, provider: ChatProvider) -> None:
         last_prompt = prompt_event
         last_answer = answer_event
         print(f"agent> {answer_text}")
-
-
-def _learned_preference_prompt(root: Path, limit: int = 8) -> str:
-    preferences = load_preferences(root)[-limit:]
-    if not preferences:
-        return ""
-    lines = [
-        "",
-        "Recent learned user preferences:",
-    ]
-    for pref in preferences:
-        if pref.polarity == "negative":
-            lines.append(f"- Avoid: {pref.text}")
-        else:
-            lines.append(f"- Prefer: {pref.text}")
-        if pref.preferred_text:
-            lines.append(f"  Preferred wording/example: {pref.preferred_text}")
-    return "\n" + "\n".join(lines) + "\n"

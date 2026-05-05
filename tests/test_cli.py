@@ -33,6 +33,7 @@ class CliTests(unittest.TestCase):
             )
             self.assertEqual(inspect_result.returncode, 0, inspect_result.stderr)
             self.assertIn("Hyperagent: gen000_seed", inspect_result.stdout)
+            self.assertIn("Self model: name=Viktor", inspect_result.stdout)
 
     def test_cli_chat_once_records_feedback(self) -> None:
         with workspace_ctx() as root:
