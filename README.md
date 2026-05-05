@@ -66,3 +66,35 @@ Feedback commands:
 collected imitation cases. A candidate is promoted when it passes validation,
 keeps safety above the configured threshold, and wins at least 60% of weighted
 pairwise comparisons.
+
+## Slack app
+
+Create a Slack app from `slack_app_manifest.yaml`, install it to your workspace,
+enable Socket Mode, and create an app-level token with `connections:write`.
+
+Required environment:
+
+```bash
+export SLACK_BOT_TOKEN="xoxb-..."
+export SLACK_APP_TOKEN="xapp-..."
+export MODEL_PROVIDER="codex_cli"
+export CODEX_CLI_MODEL="gpt-5.5"
+```
+
+Run locally:
+
+```bash
+uv run -m viktor_dgmh slack serve
+```
+
+Use it by DMing the bot or mentioning it in a channel after inviting it. React to
+the bot's answer to create feedback:
+
+```text
+:+1: good example
+:-1: bad example
+:scissors: too verbose
+:mag: weak evidence
+:warning: unsafe
+:brain: remember this preference
+```

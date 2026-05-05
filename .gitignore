@@ -9,4 +9,5 @@ runs/
 memory/
 archive/gen*_child*/
 .env
+.env.*
 *.log

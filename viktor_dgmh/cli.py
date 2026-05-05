@@ -11,6 +11,7 @@ from .llm import provider_from_config
 from .memory import load_imitation_cases, load_preferences
 from .models import Config
 from .runner import run_evolution
+from .slack_app import serve_slack_app
 from .validator import validate_agent_dir
 
 
@@ -49,6 +50,11 @@ def main() -> None:
 
     memory_p = sub.add_parser("memory", help="Inspect collected imitation memory.")
     memory_p.add_argument("action", choices=["summarize"])
+
+    slack_p = sub.add_parser("slack", help="Run Slack app integrations.")
+    slack_sub = slack_p.add_subparsers(dest="slack_command", required=True)
+    slack_serve_p = slack_sub.add_parser("serve", help="Start the Slack Socket Mode app.")
+    slack_serve_p.add_argument("--fake", action="store_true")
 
     args = parser.parse_args()
     root = Path.cwd().resolve()
@@ -137,3 +143,13 @@ def main() -> None:
             by_kind[pref.kind] = by_kind.get(pref.kind, 0) + 1
         for kind, count in sorted(by_kind.items()):
             print(f"{kind}: {count}")
+        return
+
+    if args.command == "slack":
+        if args.slack_command == "serve":
+            try:
+                serve_slack_app(root, config, use_fake=args.fake)
+            except RuntimeError as exc:
+                print(f"Slack app error: {exc}")
+                raise SystemExit(1) from exc
+        return

@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .models import ChatEvent, ImitationCase, PreferenceSignal
-from .paths import chat_sessions_dir, imitation_cases_path, preferences_path
+from .paths import chat_sessions_dir, imitation_cases_path, preferences_path, slack_message_map_path
 from .serialization import append_jsonl, read_jsonl
 
 
@@ -48,6 +48,28 @@ def load_preferences(root: Path) -> list[PreferenceSignal]:
 
 def load_imitation_cases(root: Path) -> list[ImitationCase]:
     return [ImitationCase.model_validate(row) for row in read_jsonl(imitation_cases_path(root))]
+
+
+def load_session_events(root: Path, session_id: str) -> list[ChatEvent]:
+    return [ChatEvent.model_validate(row) for row in read_jsonl(session_path(root, session_id))]
+
+
+def load_chat_event(root: Path, session_id: str, event_id: str) -> ChatEvent | None:
+    for event in load_session_events(root, session_id):
+        if event.event_id == event_id:
+            return event
+    return None
+
+
+def append_slack_message_map(root: Path, mapping: dict) -> None:
+    append_jsonl(slack_message_map_path(root), mapping)
+
+
+def find_slack_message_map(root: Path, *, channel: str, ts: str) -> dict | None:
+    for row in reversed(read_jsonl(slack_message_map_path(root))):
+        if row.get("channel") == channel and row.get("ts") == ts:
+            return row
+    return None
 
 
 def extract_preference_from_feedback(
@@ -158,4 +180,3 @@ def _case_from_signal(
         avoid_text=answer.text if signal.polarity == "negative" and answer else None,
         weight=signal.strength,
     )
-

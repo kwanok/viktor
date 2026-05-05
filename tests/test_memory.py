@@ -7,7 +7,10 @@ from viktor_dgmh.archive import init_workspace
 from viktor_dgmh.chat import run_chat_once
 from viktor_dgmh.llm import FakeProvider
 from viktor_dgmh.memory import (
+    append_slack_message_map,
     extract_preference_from_feedback,
+    find_slack_message_map,
+    load_chat_event,
     load_imitation_cases,
     load_preferences,
 )
@@ -71,7 +74,30 @@ class MemoryTests(unittest.TestCase):
             self.assertEqual(len(cases), 1)
             self.assertIn("claim/evidence/limitation", prefs[0].text)
 
+    def test_slack_message_mapping_roundtrip(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            event = ChatEvent(event_id="p1", session_id="s1", type="prompt", role="user", text="설계 어때?")
+            from viktor_dgmh.memory import append_chat_event
+
+            append_chat_event(root, event)
+            append_slack_message_map(
+                root,
+                {
+                    "channel": "C1",
+                    "ts": "123.45",
+                    "session_id": "s1",
+                    "prompt_event_id": "p1",
+                    "answer_event_id": "a1",
+                },
+            )
+
+            mapping = find_slack_message_map(root, channel="C1", ts="123.45")
+            loaded = load_chat_event(root, "s1", "p1")
+
+            self.assertEqual(mapping["prompt_event_id"], "p1")
+            self.assertEqual(loaded.text, "설계 어때?")
+
 
 if __name__ == "__main__":
     unittest.main()
-
