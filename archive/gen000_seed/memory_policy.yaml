@@ -1,0 +1,9 @@
+version: 1
+remember:
+- stable user preferences
+- task outcomes
+- failed benchmark patterns
+do_not_store:
+- secrets
+- credentials
+- private data not needed for future task quality

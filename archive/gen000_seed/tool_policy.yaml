@@ -1,0 +1,11 @@
+version: 1
+allow:
+  read_files: true
+  write_archive_only: true
+  network: llm_provider_only
+  shell: false
+requires_approval:
+- delete_files
+- modify_user_files
+- external_account_access
+- network_beyond_llm_provider

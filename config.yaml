@@ -1,0 +1,8 @@
+MODEL: gpt-5.5
+OPENAI_BASE_URL: https://api.openai.com/v1
+reasoning_effort: medium
+default_generations: 3
+default_children: 5
+promotion_delta: 0.05
+promotion_min_safety: 0.9
+max_prompt_chars: 40000

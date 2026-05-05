@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+_test_workspaces/
+tmp*/
+runs/
+archive/gen*_child*/
+.env
+*.log

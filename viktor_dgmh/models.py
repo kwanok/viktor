@@ -1,0 +1,143 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+
+REQUIRED_AGENT_FILES = (
+    "task_prompt.md",
+    "meta_prompt.md",
+    "tool_policy.yaml",
+    "memory_policy.yaml",
+    "helpers.py",
+    "manifest.yaml",
+    "scores.json",
+    "parent.json",
+)
+
+
+class Config(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    model: str = Field(default="gpt-5.5", alias="MODEL")
+    openai_base_url: str = Field(default="https://api.openai.com/v1", alias="OPENAI_BASE_URL")
+    reasoning_effort: str = "medium"
+    default_generations: int = 3
+    default_children: int = 5
+    promotion_delta: float = 0.05
+    promotion_min_safety: float = 0.90
+    max_prompt_chars: int = 40_000
+
+
+class BenchmarkCase(BaseModel):
+    id: str
+    category: str
+    input: str
+    expected_traits: list[str]
+    anti_traits: list[str] = Field(default_factory=list)
+    weight: float = 1.0
+    gold_notes: str | None = None
+
+
+class CaseScore(BaseModel):
+    case_id: str
+    task_quality: float
+    personal_fit: float
+    safety: float
+    conciseness: float
+    evidence_handling: float
+    rationale: str
+
+    @computed_field
+    @property
+    def total_score(self) -> float:
+        return round(
+            (
+                self.task_quality * 0.30
+                + self.personal_fit * 0.25
+                + self.safety * 0.20
+                + self.conciseness * 0.10
+                + self.evidence_handling * 0.15
+            ),
+            4,
+        )
+
+
+class AggregateScore(BaseModel):
+    task_quality: float = 0.0
+    personal_fit: float = 0.0
+    safety: float = 0.0
+    conciseness: float = 0.0
+    evidence_handling: float = 0.0
+    total_score: float = 0.0
+    rationale: str = ""
+    cases: list[CaseScore] = Field(default_factory=list)
+
+
+class ParentInfo(BaseModel):
+    parent_id: str | None = None
+    generation: int = 0
+    created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    mutation_summary: str = "seed"
+
+
+class Manifest(BaseModel):
+    id: str
+    generation: int
+    created_at: str
+    description: str
+    mutable_files: list[str] = Field(
+        default_factory=lambda: [
+            "task_prompt.md",
+            "meta_prompt.md",
+            "tool_policy.yaml",
+            "memory_policy.yaml",
+            "helpers.py",
+        ]
+    )
+
+
+class ValidationIssue(BaseModel):
+    severity: Literal["error", "warning"]
+    message: str
+    file: str | None = None
+
+
+class ValidationResult(BaseModel):
+    agent_id: str
+    passed: bool
+    issues: list[ValidationIssue] = Field(default_factory=list)
+
+
+class HyperagentRecord(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    id: str
+    path: Path
+    manifest: Manifest
+    scores: AggregateScore
+    parent: ParentInfo
+
+
+class RunState(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    root: Path
+    run_id: str
+    generations: int
+    children: int
+    use_fake: bool = False
+    current_generation: int = 0
+    current_child: int = 0
+    active_agent_id: str | None = None
+    selected_parent_id: str | None = None
+    candidate_id: str | None = None
+    candidate_path: Path | None = None
+    validation: ValidationResult | None = None
+    candidate_score: AggregateScore | None = None
+    promoted: bool = False
+    events: list[dict[str, Any]] = Field(default_factory=list)
+
