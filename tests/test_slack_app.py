@@ -9,8 +9,9 @@ import yaml
 from tests.workspace import workspace_ctx
 from viktor_dgmh.archive import init_workspace
 from viktor_dgmh.llm import FakeProvider
-from viktor_dgmh.memory import load_capability_gaps, load_capability_work_items
-from viktor_dgmh.models import Config
+from viktor_dgmh.capability_work import request_capability_work
+from viktor_dgmh.memory import append_capability_gap, load_capability_gaps, load_capability_work_items, load_latest_capability_work_items
+from viktor_dgmh.models import CapabilityGap, Config
 from viktor_dgmh.slack_app import (
     REACTION_TO_FEEDBACK,
     _answer_and_map,
@@ -216,6 +217,41 @@ class SlackAppTests(unittest.TestCase):
 
             self.assertEqual(len(load_capability_gaps(root)), 1)
             self.assertEqual(len(load_capability_work_items(root)), 1)
+
+    def test_slack_approval_message_queues_self_work(self) -> None:
+        with workspace_ctx() as root:
+            init_workspace(root)
+            gap = CapabilityGap(
+                gap_id="gap_scope",
+                source="test",
+                summary="Need Slack reaction capability.",
+                requested_capability="slack_reaction_add",
+                failure_mode="missing_slack_action_capability",
+                required_changes=["slack_scope", "code", "restart"],
+                requires_restart=True,
+            )
+            append_capability_gap(root, gap)
+            request_capability_work(root, gap, source="test", requested_by="U1")
+            provider = CapturingProvider()
+
+            with patch("viktor_dgmh.slack_app.schedule_auto_evolve_after_conversation"):
+                _answer_and_map(
+                    root,
+                    provider,
+                    "reactions:write 권한 추가했고 직접 작업해서 결과 알려줘",
+                    {"channel": "C1", "ts": "5", "thread_ts": "1", "user": "U1"},
+                    fake_say,
+                    FakeLogger(),
+                    config=Config(auto_evolve_min_chat_events=1, capability_self_work_auto_execute=False),
+                    thread_context="user:U1: Please add :eyes: as a reaction to my Slack message.",
+                    use_fake=True,
+                )
+
+            latest = load_latest_capability_work_items(root)
+            self.assertEqual(len(latest), 1)
+            self.assertEqual(latest[0].status, "queued")
+            joined_prompt = "\n".join(message["content"] for message in provider.messages)
+            self.assertIn("execution did not start", joined_prompt)
 
     def test_manifest_does_not_grant_reaction_write_scope_yet(self) -> None:
         manifest = yaml.safe_load((Path.cwd() / "slack_app_manifest.yaml").read_text(encoding="utf-8"))

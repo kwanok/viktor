@@ -53,6 +53,9 @@ class Config(BaseModel):
     slack_shell_enabled: bool = False
     slack_shell_timeout_seconds: int = 60
     slack_shell_max_output_chars: int = 3500
+    capability_self_work_enabled: bool = True
+    capability_self_work_auto_execute: bool = True
+    capability_self_work_timeout_seconds: int = 900
     max_prompt_chars: int = 40_000
 
 

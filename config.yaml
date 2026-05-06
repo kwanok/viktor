@@ -25,4 +25,7 @@ slack_min_respond_score: 0.65
 slack_shell_enabled: false
 slack_shell_timeout_seconds: 60
 slack_shell_max_output_chars: 3500
+capability_self_work_enabled: true
+capability_self_work_auto_execute: true
+capability_self_work_timeout_seconds: 900
 max_prompt_chars: 40000

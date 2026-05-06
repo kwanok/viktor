@@ -165,6 +165,74 @@ class CliTests(unittest.TestCase):
             self.assertEqual(list_result.returncode, 0, list_result.stderr)
             self.assertIn("gap_work_cli", list_result.stdout)
 
+    def test_cli_capability_approve_and_execute_fake(self) -> None:
+        with workspace_ctx() as root:
+            env = os.environ.copy()
+            env["PYTHONPATH"] = str(Path.cwd())
+            init_result = subprocess.run(
+                [sys.executable, "-m", "viktor_dgmh", "init"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(init_result.returncode, 0, init_result.stderr)
+            append_capability_gap(
+                root,
+                CapabilityGap(
+                    gap_id="gap_execute_cli",
+                    source="test",
+                    summary="Need Slack reaction capability.",
+                    requested_capability="slack_reaction_add",
+                    failure_mode="missing_slack_action_capability",
+                    required_changes=["slack_scope", "code", "restart"],
+                    requires_restart=True,
+                ),
+            )
+            work_result = subprocess.run(
+                [sys.executable, "-m", "viktor_dgmh", "capability", "work", "--gap", "gap_execute_cli"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(work_result.returncode, 0, work_result.stderr)
+            work_id = next(line.split(":", 1)[1].strip() for line in work_result.stdout.splitlines() if line.startswith("Capability work:"))
+
+            approve_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "viktor_dgmh",
+                    "capability",
+                    "approve",
+                    "--work",
+                    work_id,
+                    "--evidence",
+                    "test approval",
+                ],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            execute_result = subprocess.run(
+                [sys.executable, "-m", "viktor_dgmh", "capability", "execute", "--work", work_id, "--fake"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(approve_result.returncode, 0, approve_result.stderr)
+            self.assertIn("Status: queued", approve_result.stdout)
+            self.assertEqual(execute_result.returncode, 0, execute_result.stderr)
+            self.assertIn("Status: completed", execute_result.stdout)
+
     def test_cli_runtime_request_restart_and_status(self) -> None:
         with workspace_ctx() as root:
             env = os.environ.copy()

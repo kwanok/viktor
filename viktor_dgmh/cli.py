@@ -4,7 +4,7 @@ import argparse
 from pathlib import Path
 
 from .archive import init_workspace, load_agent, load_config, persist_score, set_active_agent
-from .capability_work import request_capability_work
+from .capability_work import approve_capability_work, execute_capability_work, find_latest_work, request_capability_work
 from .chat import run_chat_once, run_interactive_chat
 from .evaluator import evaluate_agent
 from .imitation import evaluate_pairwise_imitation
@@ -13,6 +13,7 @@ from .llm import provider_from_config
 from .memory import (
     find_capability_gap,
     load_capability_gaps,
+    load_latest_capability_work_items,
     load_capability_work_items,
     load_imitation_cases,
     load_preferences,
@@ -81,6 +82,13 @@ def main() -> None:
     capability_work_p.add_argument("--gap", required=True)
     capability_work_p.add_argument("--source", default="cli")
     capability_work_p.add_argument("--requested-by", default=None)
+    capability_approve_p = capability_sub.add_parser("approve", help="Record approval and queue a blocked work item.")
+    capability_approve_p.add_argument("--work", required=True)
+    capability_approve_p.add_argument("--approved-by", default=None)
+    capability_approve_p.add_argument("--evidence", default="")
+    capability_execute_p = capability_sub.add_parser("execute", help="Execute a queued capability work item.")
+    capability_execute_p.add_argument("--work", required=True)
+    capability_execute_p.add_argument("--fake", action="store_true")
     capability_sub.add_parser("work-list", help="List capability work items.")
 
     runtime_p = sub.add_parser("runtime", help="Inspect and request runtime lifecycle changes.")
@@ -261,10 +269,30 @@ def main() -> None:
                 print(f"Blocked: {item.blocked_reason}")
             return
         if args.capability_command == "work-list":
-            items = load_capability_work_items(root)
+            items = load_latest_capability_work_items(root)
             print(f"Capability work items: {len(items)}")
             for item in items:
                 print(f"{item.work_id} {item.status} gap={item.gap_id}: {item.summary}")
+            return
+        if args.capability_command == "approve":
+            item = find_latest_work(root, args.work)
+            if item is None:
+                print(f"Unknown capability work item: {args.work}")
+                return
+            approved = approve_capability_work(root, item, approved_by=args.approved_by, evidence=args.evidence)
+            print(f"Capability work: {approved.work_id}")
+            print(f"Status: {approved.status}")
+            if approved.result:
+                print(approved.result)
+            return
+        if args.capability_command == "execute":
+            result = execute_capability_work(root, args.work, config, fake=args.fake)
+            print(f"Capability work: {result.work_id}")
+            print(f"Status: {result.status}")
+            if result.restart_request_id:
+                print(f"Restart request: {result.restart_request_id}")
+            if result.result:
+                print(result.result)
             return
 
     if args.command == "runtime":

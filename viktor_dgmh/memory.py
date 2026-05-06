@@ -73,6 +73,15 @@ def load_capability_work_items(root: Path) -> list[CapabilityWorkItem]:
     return [CapabilityWorkItem.model_validate(row) for row in read_jsonl(capability_work_path(root))]
 
 
+def load_latest_capability_work_items(root: Path) -> list[CapabilityWorkItem]:
+    latest: dict[str, CapabilityWorkItem] = {}
+    for item in load_capability_work_items(root):
+        existing = latest.get(item.work_id)
+        if existing is None or item.updated_at >= existing.updated_at:
+            latest[item.work_id] = item
+    return sorted(latest.values(), key=lambda item: item.updated_at)
+
+
 def find_capability_gap(root: Path, gap_id: str) -> CapabilityGap | None:
     return next((gap for gap in load_capability_gaps(root) if gap.gap_id == gap_id), None)
 

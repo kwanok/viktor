@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from pathlib import Path
 
 from .archive import get_active_agent_id
 from .auto_evolve import schedule_auto_evolve_after_conversation
-from .capability_work import request_capability_work
+from .capability_work import approve_work_from_message, execute_capability_work, request_capability_work
 from .chat import answer_with_agent, record_feedback
 from .llm import provider_from_config
 from .memory import (
@@ -343,12 +344,28 @@ def _slack_capability_gap_evidence(text: str, thread_context: str | None, event:
     return evidence
 
 
-def _capability_gap_prompt_note(gap: CapabilityGap, work_item: CapabilityWorkItem | None = None) -> str:
+def _capability_gap_prompt_note(
+    gap: CapabilityGap,
+    work_item: CapabilityWorkItem | None = None,
+    *,
+    execution_started: bool = False,
+    execution_blocker: str | None = None,
+) -> str:
     work_text = ""
     if work_item and work_item.status == "blocked":
         work_text = (
             f" A capability work item exists but is blocked: {work_item.blocked_reason}. "
             "Name the blocker directly and do not imply it was completed."
+        )
+    elif work_item and execution_started:
+        work_text = (
+            " A capability work item was approved, queued, and handed to Viktor's self-work executor. "
+            "Say that execution has started and results will be recorded by the work item."
+        )
+    elif work_item and execution_blocker:
+        work_text = (
+            f" A capability work item is queued but execution did not start: {execution_blocker}. "
+            "Name that executor blocker directly."
         )
     elif work_item:
         work_text = (
@@ -404,11 +421,28 @@ def _answer_and_map(
         prompt_text = _compose_slack_prompt(text, thread_context)
         gap = _record_slack_capability_gap_if_needed(root, text, thread_context, event, logger)
         work_item = None
+        execution_started = False
+        execution_blocker = None
         if gap:
             work_item = request_capability_work(root, gap, source="slack_message", requested_by=event.get("user"))
+            approved_work = approve_work_from_message(root, text, thread_context, approved_by=event.get("user"))
+            if approved_work and approved_work.work_id == work_item.work_id:
+                work_item = approved_work
+            if work_item.status == "queued":
+                execution_started, execution_blocker = _maybe_schedule_capability_work_execution(
+                    root,
+                    work_item,
+                    config,
+                    logger,
+                    use_fake=use_fake,
+                    user=event.get("user"),
+                )
             if logger:
                 logger.info("Capability work %s is %s for gap %s", work_item.work_id, work_item.status, gap.gap_id)
-            prompt_text = f"{_capability_gap_prompt_note(gap, work_item)}\n\n{prompt_text}"
+            prompt_text = (
+                f"{_capability_gap_prompt_note(gap, work_item, execution_started=execution_started, execution_blocker=execution_blocker)}"
+                f"\n\n{prompt_text}"
+            )
         answer = answer_with_agent(root, provider, prompt_text)
     except Exception as exc:
         logger.exception("Failed to answer Slack message")
@@ -496,6 +530,43 @@ def _log_channel_observation(root: Path, event: dict, decision) -> None:
         },
     )
     append_chat_event(root, observation)
+
+
+def _maybe_schedule_capability_work_execution(
+    root: Path,
+    work_item: CapabilityWorkItem,
+    config: Config,
+    logger,
+    *,
+    use_fake: bool,
+    user: str | None,
+) -> tuple[bool, str | None]:
+    if not config.capability_self_work_enabled:
+        return False, "capability self-work executor is disabled"
+    if not config.capability_self_work_auto_execute:
+        return False, "capability self-work auto-execute is disabled"
+    if not _self_work_user_allowed(user):
+        return False, "Slack user is not allowed to trigger self-work execution"
+
+    def task() -> None:
+        try:
+            result = execute_capability_work(root, work_item.work_id, config, fake=use_fake)
+            if logger:
+                logger.info("Capability work %s finished with status %s", result.work_id, result.status)
+        except Exception:
+            if logger:
+                logger.exception("Capability self-work execution failed")
+
+    threading.Thread(target=task, name=f"viktor-capability-work-{work_item.work_id}", daemon=True).start()
+    return True, None
+
+
+def _self_work_user_allowed(user: str | None) -> bool:
+    allowed = os.environ.get("SLACK_SELF_WORK_ALLOWED_USERS") or os.environ.get("SLACK_SHELL_ALLOWED_USERS")
+    if not allowed:
+        return True
+    allowed_users = {item.strip() for item in allowed.split(",") if item.strip()}
+    return bool(user and user in allowed_users)
 
 
 def _env_bool(name: str, default: bool) -> bool:
